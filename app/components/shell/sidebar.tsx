@@ -39,11 +39,13 @@ function NavItemWithChildren({
   collapsed,
   onClose,
   disabled = false,
+  isOperador = false,
 }: {
   item: NavItem
   collapsed: boolean
   onClose: () => void
   disabled?: boolean
+  isOperador?: boolean
 }) {
   const pathname = usePathname()
   const isActive = !disabled && pathname.startsWith(item.href)
@@ -123,7 +125,7 @@ function NavItemWithChildren({
 
       {open && (
         <ul className="mt-0.5 ml-4 space-y-0.5 border-l pl-3" style={{ borderColor: 'var(--d2b-border)' }}>
-          {item.children!.map(child => {
+          {item.children!.filter(child => !(isOperador && child.requiresAdmin)).map(child => {
             const childActive = pathname === child.href || pathname.startsWith(child.href + '/')
             const ChildIcon = child.icon
             return (
@@ -159,6 +161,7 @@ export function Sidebar() {
   // Itens de menu só ficam habilitados se o usuário tiver pelo menos 1 empresa vinculada.
   // A seção "Sistema / Configurações" é sempre acessível (href começa com /dashboard/configuracoes).
   const semEmpresa = !usuario || (usuario.empresas?.length ?? 0) === 0
+  const isOperador = usuario?.tipo === 'OPERADOR'
 
   const isActive = (href: string) =>
     href === '/dashboard' ? pathname === href : pathname.startsWith(href)
@@ -233,6 +236,7 @@ export function Sidebar() {
                       collapsed={collapsed}
                       onClose={() => setMobileOpen(false)}
                       disabled={itemDisabled}
+                      isOperador={isOperador}
                     />
                   )
                 }

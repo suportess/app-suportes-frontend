@@ -63,6 +63,7 @@ export type NavItem = {
   href: string
   icon: LucideIcon
   badge?: string
+  requiresAdmin?: boolean
   children?: NavItem[]
 }
 
@@ -139,7 +140,7 @@ export const navGroups: NavGroup[] = [
           { label: 'Empresa',        href: '/dashboard/configuracoes/empresa',     icon: Landmark  },
           { label: 'Instalação',     href: '/dashboard/configuracoes/instalacao',  icon: ServerCog },
           { label: 'Banco de Dados', href: '/dashboard/configuracoes/banco',       icon: Database  },
-          { label: 'Usuários',       href: '/dashboard/configuracoes/usuarios',    icon: Users     },
+          { label: 'Usuários',       href: '/dashboard/configuracoes/usuarios',    icon: Users, requiresAdmin: true },
           // { label: 'Estoques',    href: '/dashboard/configuracoes/estoques',   icon: Archive   }, // OCULTO
           // { label: 'Permissões',  href: '/dashboard/configuracoes/permissoes', icon: KeyRound  }, // OCULTO
         ],

@@ -1,6 +1,6 @@
 // ─── Usuário (Auth0 + backend) ─────────────────────────────────────────────────
 
-export type TipoUsuario = 'OPERADOR'
+export type TipoUsuario = 'OPERADOR' | 'ADMIN' | string
 
 export type UsuarioEmpresaDTO = {
   id: number
