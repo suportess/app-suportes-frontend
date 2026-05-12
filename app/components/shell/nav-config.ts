@@ -55,6 +55,8 @@ import {
   Landmark,
   Database,
   ServerCog,
+  Package,
+  FileSpreadsheet,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -89,7 +91,8 @@ export const navGroups: NavGroup[] = [
         children: [
           // { label: 'Saídas',         href: '/dashboard/movimentos/saidas',        icon: ArrowUpRight   }, // OCULTO
           // { label: 'Devoluções',     href: '/dashboard/movimentos/devolucoes',    icon: ArrowDownLeft  }, // OCULTO
-          { label: 'Transferências', href: '/dashboard/movimentos/transferencias', icon: ArrowLeftRight },
+          { label: 'Transferências',    href: '/dashboard/movimentos/transferencias',    icon: ArrowLeftRight },
+          { label: 'Saldo Consignados', href: '/dashboard/movimentos/saldo-consignados', icon: Package        },
           // { label: 'Baixas',         href: '/dashboard/movimentos/baixas',         icon: XCircle        }, // OCULTO
         ],
       },
@@ -103,25 +106,26 @@ export const navGroups: NavGroup[] = [
   //     { label: 'Saldos', href: '/dashboard/saldos', icon: Archive },
   //   ],
   // },
-  // ── CADASTROS (oculto) ──────────────────────────────────────────────────────
-  // {
-  //   title: 'Cadastros',
-  //   items: [
-  //     {
-  //       label: 'Produtos',
-  //       href: '/dashboard/cadastros',
-  //       icon: ClipboardList,
-  //       children: [
-  //         { label: 'Produtos',           href: '/dashboard/cadastros/produtos',     icon: Pill      },
-  //         { label: 'Unidades de Medida', href: '/dashboard/cadastros/unidades',     icon: Ruler     },
-  //         { label: 'Fornecedores',       href: '/dashboard/cadastros/fornecedores', icon: Truck     },
-  //         { label: 'Pacientes',          href: '/dashboard/cadastros/pacientes',    icon: UserRound },
-  //         { label: 'Setores',            href: '/dashboard/cadastros/setores',      icon: Building2 },
-  //         { label: 'Motivos de Baixa',   href: '/dashboard/cadastros/baixas',       icon: XCircle   },
-  //       ],
-  //     },
-  //   ],
-  // },
+  // ── CADASTROS ───────────────────────────────────────────────────────────────
+  {
+    title: 'Cadastros',
+    items: [
+      {
+        label: 'Produtos',
+        href: '/dashboard/cadastros',
+        icon: ClipboardList,
+        children: [
+          { label: 'Produtos',   href: '/dashboard/cadastros/produtos',            icon: Pill            },
+          { label: 'Importação', href: '/dashboard/cadastros/produtos/importacao', icon: FileSpreadsheet },
+          // { label: 'Unidades de Medida', href: '/dashboard/cadastros/unidades',     icon: Ruler     },
+          // { label: 'Fornecedores',       href: '/dashboard/cadastros/fornecedores', icon: Truck     },
+          // { label: 'Pacientes',          href: '/dashboard/cadastros/pacientes',    icon: UserRound },
+          // { label: 'Setores',            href: '/dashboard/cadastros/setores',      icon: Building2 },
+          // { label: 'Motivos de Baixa',   href: '/dashboard/cadastros/baixas',       icon: XCircle   },
+        ],
+      },
+    ],
+  },
   // ── RELATÓRIOS (oculto) ─────────────────────────────────────────────────────
   // {
   //   title: 'Relatórios',

@@ -1,4 +1,4 @@
-'use server'
+﻿'use server'
 
 import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/session'
@@ -10,11 +10,17 @@ import type {
   MultiEmpresaPortalDTO,
   EstoquePortalDTO,
   ProdutoConsignadoPortalDTO,
+  SaldoProdutoConsignadoPortalDTO,
+  SaldoConsigFornPortalDTO,
   ProdutoDetalhePortalDTO,
   SaldoLotePortalDTO,
   EntradaProdutoPortalDTO,
   TransferenciaConsignadoDTO,
   TransferenciaConsignadoRequest,
+  FornecedorPortalDTO,
+  OperacaoBaixaConsignadoRequest,
+  OperacaoBaixaConsignadoDTO,
+  PagedResponse,
 } from '@/lib/types'
 
 async function getSub(): Promise<string> {
@@ -140,6 +146,78 @@ export async function buscarProdutoDetalhe(
   return res.dados ?? null
 }
 
+// ─── Saldo completo de consignados ────────────────────────────────────────────
+
+export async function listarSaldoConsignados(
+  empresaId: number,
+  cdMultiEmpresa: number,
+  cdEstoque: number,
+  busca?: string,
+): Promise<SaldoProdutoConsignadoPortalDTO[]> {
+  const sub = await getSub()
+  const query = busca ? `?busca=${encodeURIComponent(busca)}` : ''
+  const res = await api.get<SaldoProdutoConsignadoPortalDTO[]>(
+    `/portal/mv/empresas/${empresaId}/multiempresas/${cdMultiEmpresa}/estoques/${cdEstoque}/saldo-consignados${query}`,
+    { auth0Sub: sub },
+  )
+  return res.dados ?? []
+}
+// ─── Saldo consignado por fornecedor ──────────────────────────────────────────────────
+
+export async function listarSaldoConsigForn(
+  empresaId: number,
+  cdEstoque: number,
+  cdProduto: number,
+): Promise<SaldoConsigFornPortalDTO[]> {
+  const sub = await getSub()
+  const res = await api.get<SaldoConsigFornPortalDTO[]>(
+    `/portal/mv/empresas/${empresaId}/estoques/${cdEstoque}/produtos/${cdProduto}/saldo-consig-forn`,
+    { auth0Sub: sub },
+  )
+  return res.dados ?? []
+}
+// ─── Estoques todos consignados ────────────────────────────────────────────────
+
+export async function listarEstoquesTodosConsignados(
+  empresaId: number,
+  cdMultiEmpresa: number,
+  busca?: string,
+): Promise<EstoquePortalDTO[]> {
+  const sub = await getSub()
+  const query = busca ? `?busca=${encodeURIComponent(busca)}` : ''
+  const res = await api.get<EstoquePortalDTO[]>(
+    `/portal/mv/empresas/${empresaId}/multiempresas/${cdMultiEmpresa}/estoques/todos${query}`,
+    { auth0Sub: sub },
+  )
+  return res.dados ?? []
+}
+
+// ─── Todos os produtos consignados ──────────────────────────────────────────────
+
+export async function listarTodosProdutosConsignados(
+  empresaId: number,
+): Promise<ProdutoConsignadoPortalDTO[]> {
+  const sub = await getSub()
+  const res = await api.get<ProdutoConsignadoPortalDTO[]>(
+    `/portal/mv/empresas/${empresaId}/produtos-consignados`,
+    { auth0Sub: sub },
+  )
+  return res.dados ?? []
+}
+
+// ─── Fornecedores ──────────────────────────────────────────────────
+
+export async function listarFornecedores(
+  empresaId: number,
+): Promise<FornecedorPortalDTO[]> {
+  const sub = await getSub()
+  const res = await api.get<FornecedorPortalDTO[]>(
+    `/portal/mv/empresas/${empresaId}/fornecedores`,
+    { auth0Sub: sub },
+  )
+  return res.dados ?? []
+}
+
 // ─── Transferências consignadas ────────────────────────────────────────────────
 
 export async function salvarTransferencia(
@@ -180,5 +258,62 @@ export async function concluirTransferencia(
     { auth0Sub: sub },
   )
   if (!res.sucesso || !res.dados) throw new Error(res.mensagem ?? 'Erro ao concluir transferência.')
+  return res.dados
+}
+
+
+// ─── Operação Baixa Consignado ────────────────────────────────────────────────
+
+export async function salvarOperacaoBaixa(
+  empresaId: number,
+  req: OperacaoBaixaConsignadoRequest,
+): Promise<OperacaoBaixaConsignadoDTO> {
+  const sub = await getSub()
+  const res = await api.post<OperacaoBaixaConsignadoDTO>(
+    `/empresas/${empresaId}/operacoes-baixa-consignado`,
+    req,
+    { auth0Sub: sub },
+  )
+  if (!res.sucesso || !res.dados) throw new Error(res.mensagem ?? 'Erro ao salvar operação.')
+  return res.dados
+}
+
+export async function listarOperacoesBaixa(
+  empresaId: number,
+  page = 1,
+  pageSize = 20,
+): Promise<PagedResponse<OperacaoBaixaConsignadoDTO>> {
+  const sub = await getSub()
+  const res = await api.get<PagedResponse<OperacaoBaixaConsignadoDTO>>(
+    `/empresas/${empresaId}/operacoes-baixa-consignado?page=${page}&pageSize=${pageSize}`,
+    { auth0Sub: sub },
+  )
+  return res.dados ?? { dados: [], pagina: page, tamanhoPagina: pageSize, total: 0 }
+}
+
+export async function deletarOperacaoBaixa(
+  empresaId: number,
+  id: number,
+): Promise<void> {
+  const sub = await getSub()
+  const res = await api.delete<null>(
+    `/empresas/${empresaId}/operacoes-baixa-consignado/${id}`,
+    { auth0Sub: sub },
+  )
+  if (!res.sucesso) throw new Error(res.mensagem ?? 'Erro ao excluir operação.')
+}
+
+export async function atualizarOperacaoBaixa(
+  empresaId: number,
+  id: number,
+  req: OperacaoBaixaConsignadoRequest,
+): Promise<OperacaoBaixaConsignadoDTO> {
+  const sub = await getSub()
+  const res = await api.put<OperacaoBaixaConsignadoDTO>(
+    `/empresas/${empresaId}/operacoes-baixa-consignado/${id}`,
+    req,
+    { auth0Sub: sub },
+  )
+  if (!res.sucesso || !res.dados) throw new Error(res.mensagem ?? 'Erro ao atualizar operação.')
   return res.dados
 }

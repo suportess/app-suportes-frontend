@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import { Inter } from 'next/font/google'
 import { ThemeInit } from '@/components/providers/theme-init'
+import { Toaster } from 'sonner'
 import './globals.css'
 
 const inter = Inter({
@@ -26,6 +27,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="font-sans antialiased">
         <ThemeInit />
         {children}
+        <Toaster position="top-right" richColors />
       </body>
     </html>
   )

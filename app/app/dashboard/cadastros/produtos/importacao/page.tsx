@@ -1,19 +1,9 @@
-import { Pill, AlertTriangle } from 'lucide-react'
-import { getEmpresaAtiva, listarProdutos } from './actions'
-import { ProdutosView } from './_components/produtos-view'
+import { FileSpreadsheet, AlertTriangle } from 'lucide-react'
+import { getEmpresaAtiva } from './actions'
+import { ImportacaoProdutosView } from './_components/importacao-produtos-view'
 
-const PAGE_SIZE = 50
-
-export default async function ProdutosPage() {
+export default async function ImportacaoProdutosPage() {
   const empresaConf = await getEmpresaAtiva().catch(() => null)
-
-  // Busca inicial server-side para renderizar a tabela já populada
-  let initialData = { dados: [], pagina: 1, tamanhoPagina: PAGE_SIZE, total: 0 } as Awaited<ReturnType<typeof listarProdutos>>
-  if (empresaConf) {
-    initialData = await listarProdutos('', 1, PAGE_SIZE).catch(() => initialData)
-  }
-
-  const hasMore = (initialData.dados?.length ?? 0) === PAGE_SIZE
 
   return (
     <div className="page animate-fade-up">
@@ -26,11 +16,11 @@ export default async function ProdutosPage() {
               className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
               style={{ background: 'var(--purple-muted)' }}
             >
-              <Pill size={17} style={{ color: 'var(--purple)' }} />
+              <FileSpreadsheet size={17} style={{ color: 'var(--purple)' }} />
             </div>
-            Produtos
+            Importação de Produtos
           </h1>
-          <p className="page-subtitle">Medicamentos e materiais cadastrados no MV</p>
+          <p className="page-subtitle">Cadastre múltiplos produtos no MV a partir de uma planilha Excel</p>
         </div>
       </div>
 
@@ -51,13 +41,7 @@ export default async function ProdutosPage() {
         </div>
       )}
 
-      {empresaConf && (
-        <ProdutosView
-          initialData={initialData.dados ?? []}
-          initialPage={1}
-          initialHasMore={hasMore}
-        />
-      )}
+      {empresaConf && <ImportacaoProdutosView empresaConf={empresaConf} />}
 
     </div>
   )

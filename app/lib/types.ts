@@ -184,10 +184,176 @@ export type TransferenciaConsignadoRequest = Omit<
   'id' | 'status' | 'dtCriacao' | 'dtConclusao'
 >
 
+/** Resposta de /mv/api/multiempresas/{id}/estoques/{id}/saldo-consignados */
+export type SaldoProdutoConsignadoPortalDTO = {
+  CD_PRODUTO: string
+  DS_PRODUTO: string
+  QT_ESTOQUE_ATUAL: number
+  DS_UNI_PRO: string | null
+}
+
+/** Resposta de /mv/api/estoques/{id}/produtos/{id}/saldo-consig-forn */
+export type SaldoConsigFornPortalDTO = {
+  CD_MULTI_EMPRESA: number | null
+  CD_ESTOQUE: number
+  DS_ESTOQUE: string | null
+  CD_PRODUTO: number
+  DS_PRODUTO: string | null
+  CD_FORNECEDOR: number
+  NM_FORNECEDOR: string
+  QT_SALDO_CONSIG: number | null
+  QT_DISPONIVEL_ENTPRO: number | null
+  SN_ENTROU_POR_ESTOQUE: 'S' | 'N'
+}
+
+export type FornecedorPortalDTO = {
+  CD_FORNECEDOR: number
+  NM_FORNECEDOR: string
+}
+
+// ─── Produtos MV (DBAMV) ─────────────────────────────────────────────────────
+
+/** Retornado por GET /api/produtos (listar paginado) */
+export type ProdutoMvDTO = {
+  CD_PRODUTO: string
+  DS_PRODUTO: string
+  DS_COMERCIAL: string
+  SN_LOTE: 'S' | 'N' | string
+  /** Alias de SN_CONTROLE_VALIDADE */
+  SN_VALIDADE: string
+  SN_CONSIGNADO: 'S' | 'N' | string
+  SN_MEDICAMENTO: 'S' | 'N' | string
+  TP_SEXO: string
+  TP_ATIVO: 'S' | 'N' | string
+  DS_SUB_CLA: string | null
+  CD_ESPECIE: number
+  CD_CLASSE: number
+  CD_SUB_CLA: number
+  DS_UNIDADE_REF: string | null
+}
+
+/** Retornado por GET /api/produtos/{id}/unidades */
+export type UniProPortalDTO = {
+  CD_UNI_PRO: string
+  CD_PRODUTO: string
+  CD_UNIDADE: string
+  DS_UNIDADE: string
+  VL_FATOR: string
+  /** R = Referencial, C = Complementar, E = Embalagem */
+  TP_RELATORIOS: 'R' | 'C' | 'E' | string
+  SN_ATIVO: 'S' | 'N' | string
+  SN_PRESCRICAO: 'S' | 'N' | string
+}
+
+/** Retornado por GET /api/produtos/{id}/empresas */
+export type EmpresaProdutoPortalDTO = {
+  CD_PRODUTO: string
+  CD_MULTI_EMPRESA: number
+  QT_ESTOQUE_ATUAL: number | null
+  QT_ESTOQUE_MINIMO: number | null
+  QT_ESTOQUE_MAXIMO: number | null
+  SN_ATIVO: 'S' | 'N' | string
+  SN_PADRONIZADO: 'S' | 'N' | string
+  SN_LOTE: 'S' | 'N' | string
+  SN_CONTROLE_VALIDADE: 'S' | 'N' | string
+  VL_CUSTO_MEDIO: string | null
+  VL_PRECO_DE_VENDA: string | null
+}
+
+// ─── Classificação MV (Espécie / Classe / Subclasse) ─────────────────────────
+
+export type EspecieMvDTO = {
+  CD_ESPECIE: number
+  DS_ESPECIE: string
+}
+
+export type ClasseMvDTO = {
+  CD_ESPECIE: number
+  CD_CLASSE: number
+  DS_CLASSE: string
+}
+
+export type SubClasseMvDTO = {
+  CD_ESPECIE: number
+  CD_CLASSE: number
+  CD_SUB_CLA: number
+  DS_SUB_CLA: string
+}
+
 // ─── API Response envelope ────────────────────────────────────────────────────
 
 export type ApiResponse<T> = {
   sucesso: boolean
   mensagem: string | null
   dados: T | null
+}
+
+// ─── Operação Baixa Consignado ────────────────────────────────────────────────
+
+export type OperacaoBaixaConsignadoLinhaRequest = {
+  cdFornecedor: number
+  nmFornecedor: string
+  quantidade: number
+  lote: string
+  validade: string
+}
+
+export type OperacaoBaixaConsignadoItemRequest = {
+  cdProduto: number
+  dsProduto: string | null
+  snLote: string
+  snValidade: string
+  linhas: OperacaoBaixaConsignadoLinhaRequest[]
+}
+
+export type OperacaoBaixaConsignadoOrigemRequest = {
+  cdProduto: number
+  dsProduto: string | null
+  qtEstoqueAtual: number | null
+}
+
+export type OperacaoBaixaConsignadoRequest = {
+  cdMultiEmpresa: number
+  cdEstoque: number
+  dsEstoque: string | null
+  origens: OperacaoBaixaConsignadoOrigemRequest[]
+  itens: OperacaoBaixaConsignadoItemRequest[]
+}
+
+export type OperacaoBaixaConsignadoLinhaDTO = {
+  id: number
+  cdFornecedor: number
+  nmFornecedor: string | null
+  quantidade: number
+  lote: string | null
+  validade: string | null
+}
+
+export type OperacaoBaixaConsignadoItemDTO = {
+  id: number
+  cdProduto: number
+  dsProduto: string | null
+  snLote: string
+  snValidade: string
+  linhas: OperacaoBaixaConsignadoLinhaDTO[]
+}
+
+export type OperacaoBaixaConsignadoOrigemDTO = {
+  id: number
+  cdProduto: number
+  dsProduto: string | null
+  qtEstoqueAtual: number | null
+}
+
+export type OperacaoBaixaConsignadoDTO = {
+  id: number
+  empresaId: number
+  cdMultiEmpresa: number
+  cdEstoque: number
+  dsEstoque: string | null
+  status: 'PENDENTE' | 'CONCLUIDO'
+  dtCriacao: string
+  dtConclusao: string | null
+  origens: OperacaoBaixaConsignadoOrigemDTO[]
+  itens: OperacaoBaixaConsignadoItemDTO[]
 }
