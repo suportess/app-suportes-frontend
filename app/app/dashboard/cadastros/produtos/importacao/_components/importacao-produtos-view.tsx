@@ -12,8 +12,12 @@ import {
   FileSpreadsheet, Upload, X, Loader2, AlertTriangle,
   ChevronRight, ChevronLeft, FileCheck2, Table2, RotateCcw,
   Tags, Check, Package, Trash2, Plus, Ruler, Search,
+  CheckCircle2, XCircle,
 } from 'lucide-react'
-import { parsearPlanilha, type ParseResult } from '../actions'
+import {
+  parsearPlanilha, type ParseResult,
+  cadastrarProduto, type CadastroProdutoPayload, type CadastroResult,
+} from '../actions'
 import {
   listarEspecies,
   listarClasses,
@@ -720,6 +724,14 @@ function EtapaUnidade({
   )
 }
 
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function snFromExcel(val: string): 'S' | 'N' {
+  const v = String(val ?? '').trim().toUpperCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  return (v === 'SIM' || v === 'S') ? 'S' : 'N'
+}
+
 // ─── Etapa 4: Vínculo ─────────────────────────────────────────────────────────
 
 function EtapaVinculo({
@@ -737,6 +749,11 @@ function EtapaVinculo({
   const [selecionados, setSelecionados] = useState<Set<number>>(new Set())
   const [vinculos,     setVinculos]     = useState<Record<number, number>>({})
   const [bulkLinhaIdx, setBulkLinhaIdx] = useState(0)
+
+  // Estado de importação
+  const [importando,  setImportando]  = useState(false)
+  const [concluido,   setConcluido]   = useState(false)
+  const [resultados,  setResultados]  = useState<Record<number, CadastroResult>>({})
 
   const nomeKey = useMemo(() => {
     const candidates = ['ds_produto', 'DS_PRODUTO', 'nome', 'NOME', 'descricao', 'DESCRICAO']
@@ -801,6 +818,61 @@ function EtapaVinculo({
   const labelLinha = (l: ClassificacaoLinha) =>
     `${l.especieTexto} › ${l.classeTexto} › ${l.subclasseTexto}${l.dsUnidade ? ` · ${l.dsUnidade}` : ''}`
 
+  // Todos os vinculados (para exibir durante e após a importação)
+  const vinculadosOrdenados = useMemo(() =>
+    rows
+      .map((row, i) => ({ row, i }))
+      .filter(({ i }) => vinculos[i] !== undefined),
+  [rows, vinculos])
+
+  async function handleConfirmarImportacao() {
+    setImportando(true)
+    const novosResultados: Record<number, CadastroResult> = {}
+
+    for (const { row, i } of vinculadosOrdenados) {
+      const linha = linhas[vinculos[i]]
+
+      if (linha.cdEspecie === undefined || linha.cdClasse === undefined || linha.cdSubCla === undefined) {
+        novosResultados[i] = { ok: false, erro: 'Classificação sem códigos resolvidos no MV.' }
+        setResultados({ ...novosResultados })
+        continue
+      }
+
+      if (!linha.cdUnidade) {
+        novosResultados[i] = { ok: false, erro: 'Unidade não resolvida no MV.' }
+        setResultados({ ...novosResultados })
+        continue
+      }
+
+      const payload: CadastroProdutoPayload = {
+        ds_produto:          row.ds_produto ?? '',
+        ds_comercial:        row.ds_comercial  || undefined,
+        ds_especificacao:    row.ds_especificacao || undefined,
+        sn_lote:             snFromExcel(row.sn_lote),
+        sn_validade:         snFromExcel(row.sn_validade),
+        sn_medicamento:      snFromExcel(row.sn_medicamento),
+        sn_consignado:       'N',
+        tp_sexo:             'A',
+        cd_especie:          linha.cdEspecie,
+        cd_classe:           linha.cdClasse,
+        cd_sub_cla:          linha.cdSubCla,
+        ds_sub_cla:          linha.subclasseTexto,
+        cd_unidade:          linha.cdUnidade,
+        cd_pro_fat:          row.cd_pro_fat          || undefined,
+        cd_pro_fat_sus:      row.cd_pro_fat_sus      || undefined,
+        cd_procedimento_sus: row.cd_procedimento_sus || undefined,
+        empresas:            [1],
+      }
+
+      const res = await cadastrarProduto(payload)
+      novosResultados[i] = res
+      setResultados({ ...novosResultados })
+    }
+
+    setImportando(false)
+    setConcluido(true)
+  }
+
   return (
     <div className="flex flex-col gap-4">
 
@@ -820,131 +892,165 @@ function EtapaVinculo({
         </span>
       </div>
 
-      {/* Barra de controles */}
-      <div className="card card-p flex flex-col gap-3">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-xs font-medium whitespace-nowrap" style={{ color: 'var(--text-secondary)' }}>
-            Aplicar em massa:
-          </span>
-          <select
-            className="input-field text-xs flex-1"
-            style={{ minWidth: 180 }}
-            value={bulkLinhaIdx}
-            onChange={e => setBulkLinhaIdx(Number(e.target.value))}
-          >
-            {linhas.map((l, i) => (
-              <option key={i} value={i}>{labelLinha(l)}</option>
-            ))}
-          </select>
-          <button
-            className="btn btn-secondary flex items-center gap-1.5 whitespace-nowrap"
-            disabled={selecionados.size === 0}
-            onClick={aplicarAosSelecionados}
-            title={selecionados.size === 0 ? 'Selecione ao menos um produto na tabela' : undefined}
-          >
-            <Check size={13} />
-            Selecionados{selecionados.size > 0 && (
-              <span className="badge badge-muted" style={{ marginLeft: 2 }}>{selecionados.size}</span>
-            )}
-          </button>
-          <button
-            className="btn btn-primary flex items-center gap-1.5 whitespace-nowrap"
-            onClick={aplicarATodosVisiveis}
-          >
-            <Check size={13} />
-            Todos{busca ? ' filtrados' : ''}
-            <span className="badge badge-brand" style={{ marginLeft: 2 }}>{visiveis.length}</span>
-          </button>
-        </div>
+      {/* Barra de controles — oculta durante/após importação */}
+      {!importando && !concluido && (
+        <div className="card card-p flex flex-col gap-3">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs font-medium whitespace-nowrap" style={{ color: 'var(--text-secondary)' }}>
+              Aplicar em massa:
+            </span>
+            <select
+              className="input-field text-xs flex-1"
+              style={{ minWidth: 180 }}
+              value={bulkLinhaIdx}
+              onChange={e => setBulkLinhaIdx(Number(e.target.value))}
+            >
+              {linhas.map((l, i) => (
+                <option key={i} value={i}>{labelLinha(l)}</option>
+              ))}
+            </select>
+            <button
+              className="btn btn-secondary flex items-center gap-1.5 whitespace-nowrap"
+              disabled={selecionados.size === 0}
+              onClick={aplicarAosSelecionados}
+              title={selecionados.size === 0 ? 'Selecione ao menos um produto na tabela' : undefined}
+            >
+              <Check size={13} />
+              Selecionados{selecionados.size > 0 && (
+                <span className="badge badge-muted" style={{ marginLeft: 2 }}>{selecionados.size}</span>
+              )}
+            </button>
+            <button
+              className="btn btn-primary flex items-center gap-1.5 whitespace-nowrap"
+              onClick={aplicarATodosVisiveis}
+            >
+              <Check size={13} />
+              Todos{busca ? ' filtrados' : ''}
+              <span className="badge badge-brand" style={{ marginLeft: 2 }}>{visiveis.length}</span>
+            </button>
+          </div>
 
-        <div
-          className="relative"
-          style={{ borderTop: '1px solid var(--border)', paddingTop: '0.75rem' }}
-        >
-          <Search
-            size={13}
-            className="absolute left-3 top-1/2 -translate-y-1/2"
-            style={{ color: 'var(--text-muted)', top: 'calc(50% + 0.375rem)' }}
-          />
-          <input
-            className="input-field w-full pl-8"
-            placeholder="Filtrar por nome do produto…"
-            value={busca}
-            onChange={e => setBusca(e.target.value)}
-          />
+          <div
+            className="relative"
+            style={{ borderTop: '1px solid var(--border)', paddingTop: '0.75rem' }}
+          >
+            <Search
+              size={13}
+              className="absolute left-3 top-1/2 -translate-y-1/2"
+              style={{ color: 'var(--text-muted)', top: 'calc(50% + 0.375rem)' }}
+            />
+            <input
+              className="input-field w-full pl-8"
+              placeholder="Filtrar por nome do produto…"
+              value={busca}
+              onChange={e => setBusca(e.target.value)}
+            />
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Tabela de produtos */}
       <div className="card" style={{ overflow: 'hidden' }}>
         <table className="data-table" style={{ tableLayout: 'fixed', width: '100%' }}>
           <colgroup>
-            <col style={{ width: 40 }} />
+            {!importando && !concluido && <col style={{ width: 40 }} />}
             <col />
-            <col style={{ width: '42%' }} />
+            <col style={{ width: importando || concluido ? '40%' : '42%' }} />
+            {(importando || concluido) && <col style={{ width: 110 }} />}
           </colgroup>
           <thead>
             <tr>
-              <th>
-                <input
-                  type="checkbox"
-                  checked={todosVisivelMarcados}
-                  ref={(el: HTMLInputElement | null) => {
-                    if (el) el.indeterminate = alguemVisivel && !todosVisivelMarcados
-                  }}
-                  onChange={toggleTodosVisiveis}
-                />
-              </th>
+              {!importando && !concluido && (
+                <th>
+                  <input
+                    type="checkbox"
+                    checked={todosVisivelMarcados}
+                    ref={(el: HTMLInputElement | null) => {
+                      if (el) el.indeterminate = alguemVisivel && !todosVisivelMarcados
+                    }}
+                    onChange={toggleTodosVisiveis}
+                  />
+                </th>
+              )}
               <th>Produto</th>
               <th>Classificação atribuída</th>
+              {(importando || concluido) && <th>Status</th>}
             </tr>
           </thead>
           <tbody>
-            {visiveis.map(({ row, i }) => {
+            {(importando || concluido ? vinculadosOrdenados : visiveis).map(({ row, i }) => {
               const vinculoIdx = vinculos[i] ?? null
+              const resultado  = resultados[i]
               return (
                 <tr
                   key={i}
-                  style={selecionados.has(i)
-                    ? { background: 'var(--brand-muted)' }
-                    : undefined}
+                  style={
+                    resultado?.ok === true  ? { background: 'var(--success-muted)' } :
+                    resultado?.ok === false ? { background: 'var(--danger-muted)'  } :
+                    selecionados.has(i)     ? { background: 'var(--brand-muted)'   } :
+                    undefined
+                  }
                 >
-                  <td>
-                    <input
-                      type="checkbox"
-                      checked={selecionados.has(i)}
-                      onChange={() => toggleRow(i)}
-                    />
-                  </td>
+                  {!importando && !concluido && (
+                    <td>
+                      <input
+                        type="checkbox"
+                        checked={selecionados.has(i)}
+                        onChange={() => toggleRow(i)}
+                      />
+                    </td>
+                  )}
                   <td style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     <span style={{ fontWeight: 500, color: 'var(--text-primary)' }}>
                       {row[nomeKey] || '—'}
                     </span>
                   </td>
                   <td>
-                    <select
-                      className="input-field w-full text-xs"
-                      value={vinculoIdx ?? ''}
-                      onChange={e =>
-                        setVinculo(i, e.target.value === '' ? null : Number(e.target.value))
-                      }
-                    >
-                      <option value="">— Sem classificação —</option>
-                      {linhas.map((l, li) => (
-                        <option key={li} value={li}>{labelLinha(l)}</option>
-                      ))}
-                    </select>
+                    {importando || concluido ? (
+                      <span
+                        className="text-xs"
+                        style={{ color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}
+                      >
+                        {vinculoIdx !== null ? labelLinha(linhas[vinculoIdx]) : '—'}
+                      </span>
+                    ) : (
+                      <select
+                        className="input-field w-full text-xs"
+                        value={vinculoIdx ?? ''}
+                        onChange={e =>
+                          setVinculo(i, e.target.value === '' ? null : Number(e.target.value))
+                        }
+                      >
+                        <option value="">— Sem classificação —</option>
+                        {linhas.map((l, li) => (
+                          <option key={li} value={li}>{labelLinha(l)}</option>
+                        ))}
+                      </select>
+                    )}
                   </td>
+                  {(importando || concluido) && (
+                    <td style={{ textAlign: 'center' }}>
+                      {resultado === undefined ? (
+                        <Loader2 size={14} className="animate-spin" style={{ color: 'var(--text-muted)' }} />
+                      ) : resultado.ok ? (
+                        <CheckCircle2 size={15} style={{ color: 'var(--success)' }} />
+                      ) : (
+                        <span title={resultado.erro}>
+                          <XCircle size={15} style={{ color: 'var(--danger)' }} />
+                        </span>
+                      )}
+                    </td>
+                  )}
                 </tr>
               )
             })}
-            {visiveis.length === 0 && (
+            {!importando && !concluido && visiveis.length === 0 && (
               <tr>
                 <td
                   colSpan={3}
                   style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}
                 >
-                  Nenhum produto encontrado para "{busca}".
+                  Nenhum produto encontrado para &quot;{busca}&quot;.
                 </td>
               </tr>
             )}
@@ -952,21 +1058,61 @@ function EtapaVinculo({
         </table>
       </div>
 
+      {/* Sumário após conclusão */}
+      {concluido && (() => {
+        const total   = vinculadosOrdenados.length
+        const sucesso = vinculadosOrdenados.filter(({ i }) => resultados[i]?.ok === true).length
+        const falhas  = total - sucesso
+        return (
+          <div
+            className="card card-p flex flex-wrap items-center gap-4"
+            style={{
+              background:   falhas === 0 ? 'var(--success-muted)' : 'var(--warning-muted)',
+              borderColor:  falhas === 0 ? 'var(--success-border)' : 'var(--warning-border)',
+            }}
+          >
+            <CheckCircle2 size={18} style={{ color: falhas === 0 ? 'var(--success)' : 'var(--warning)', flexShrink: 0 }} />
+            <div className="flex-1">
+              <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+                Importação concluída
+              </p>
+              <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
+                {sucesso} produto{sucesso !== 1 ? 's' : ''} cadastrado{sucesso !== 1 ? 's' : ''} com sucesso
+                {falhas > 0 && ` · ${falhas} com erro (passe o mouse sobre o ícone ✗ para ver o detalhe)`}
+              </p>
+            </div>
+          </div>
+        )
+      })()}
+
       <div className="flex items-center justify-between">
-        <button className="btn btn-secondary flex items-center gap-1.5" onClick={onBack}>
+        <button
+          className="btn btn-secondary flex items-center gap-1.5"
+          onClick={onBack}
+          disabled={importando}
+        >
           <ChevronLeft size={15} /> Voltar
         </button>
-        <button
-          className="btn btn-gradient flex items-center gap-1.5"
-          disabled={totalVinculados === 0}
-        >
-          <FileCheck2 size={15} /> Confirmar Importação
-          {totalVinculados > 0 && (
-            <span className="badge badge-brand" style={{ marginLeft: 4 }}>
-              {totalVinculados}
-            </span>
-          )}
-        </button>
+        {!concluido && (
+          <button
+            className="btn btn-gradient flex items-center gap-1.5"
+            disabled={totalVinculados === 0 || importando}
+            onClick={handleConfirmarImportacao}
+          >
+            {importando ? (
+              <><Loader2 size={14} className="animate-spin" /> Importando…</>
+            ) : (
+              <>
+                <FileCheck2 size={15} /> Confirmar Importação
+                {totalVinculados > 0 && (
+                  <span className="badge badge-brand" style={{ marginLeft: 4 }}>
+                    {totalVinculados}
+                  </span>
+                )}
+              </>
+            )}
+          </button>
+        )}
       </div>
     </div>
   )

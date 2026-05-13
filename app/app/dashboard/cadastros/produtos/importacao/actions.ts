@@ -70,3 +70,39 @@ export async function parsearPlanilha(formData: FormData): Promise<ParseResult> 
     return { ok: false, erro: msg }
   }
 }
+
+// ─── Cadastrar produto ────────────────────────────────────────────────────────
+
+export type CadastroProdutoPayload = {
+  ds_produto:           string
+  ds_comercial?:        string
+  ds_especificacao?:    string
+  sn_lote:              string
+  sn_validade:          string
+  sn_medicamento:       string
+  sn_consignado:        string
+  tp_sexo:              string
+  cd_especie:           number
+  cd_classe:            number
+  cd_sub_cla:           number
+  ds_sub_cla:           string
+  cd_unidade:           string
+  cd_pro_fat?:          string
+  cd_pro_fat_sus?:      string
+  cd_procedimento_sus?: string
+  empresas:             number[]
+}
+
+export type CadastroResult =
+  | { ok: true }
+  | { ok: false; erro: string }
+
+export async function cadastrarProduto(payload: CadastroProdutoPayload): Promise<CadastroResult> {
+  try {
+    const sub = await getSub()
+    await api.post('/produtos', payload, { auth0Sub: sub })
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, erro: e instanceof Error ? e.message : 'Erro ao cadastrar produto.' }
+  }
+}
