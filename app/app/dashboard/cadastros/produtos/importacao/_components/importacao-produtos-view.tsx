@@ -652,9 +652,9 @@ function EtapaUnidade({
       <div className="card" style={{ overflow: 'hidden' }}>
         <table className="data-table" style={{ tableLayout: 'fixed', width: '100%' }}>
           <colgroup>
-            <col style={{ width: '24%' }} />
-            <col style={{ width: '24%' }} />
-            <col style={{ width: '24%' }} />
+            <col style={{ width: '20%' }} />
+            <col style={{ width: '20%' }} />
+            <col style={{ width: '20%' }} />
             <col />
           </colgroup>
           <thead>
@@ -954,12 +954,14 @@ function EtapaVinculo({
         <table className="data-table" style={{ tableLayout: 'fixed', width: '100%' }}>
           <colgroup>
             {!importando && !concluido && <col style={{ width: 40 }} />}
-            <col />
-            <col style={{ width: importando || concluido ? '32%' : '42%' }} />
-            {(importando || concluido) && <col style={{ width: 55 }} />}
-            {(importando || concluido) && <col style={{ width: 55 }} />}
-            {(importando || concluido) && <col style={{ width: 90 }} />}
-            {(importando || concluido) && <col style={{ width: 80 }} />}
+            {/* Produto: ~50% da largura da tabela */}
+            <col style={{ width: '50%' }} />
+            {/* Classificação: ~28% — fica próxima ao produto */}
+            <col style={{ width: '28%' }} />
+            {(importando || concluido) && <col style={{ width: 46 }} />}
+            {(importando || concluido) && <col style={{ width: 46 }} />}
+            {(importando || concluido) && <col style={{ width: 88 }} />}
+            {(importando || concluido) && <col style={{ width: 46 }} />}
           </colgroup>
           <thead>
             <tr>
@@ -976,11 +978,11 @@ function EtapaVinculo({
                 </th>
               )}
               <th>Produto</th>
-              <th>Classificação atribuída</th>
-              {(importando || concluido) && <th style={{ textAlign: 'center' }}>Lote</th>}
-              {(importando || concluido) && <th style={{ textAlign: 'center' }}>Validade</th>}
-              {(importando || concluido) && <th style={{ textAlign: 'center' }}>Cód. MV</th>}
-              {(importando || concluido) && <th style={{ textAlign: 'center' }}>Status</th>}
+              <th>Classificação</th>
+              {(importando || concluido) && <th style={{ textAlign: 'center', fontSize: 11 }}>Lote</th>}
+              {(importando || concluido) && <th style={{ textAlign: 'center', fontSize: 11 }}>Val.</th>}
+              {(importando || concluido) && <th style={{ textAlign: 'center', fontSize: 11 }}>Cód. MV</th>}
+              {(importando || concluido) && <th style={{ textAlign: 'center', fontSize: 11 }}></th>}
             </tr>
           </thead>
           <tbody>
@@ -1011,7 +1013,7 @@ function EtapaVinculo({
                       {row[nomeKey] || '—'}
                     </span>
                   </td>
-                  <td>
+                  <td style={{ overflow: 'hidden' }}>
                     {importando || concluido ? (
                       <span
                         className="text-xs"
@@ -1035,23 +1037,29 @@ function EtapaVinculo({
                     )}
                   </td>
                   {(importando || concluido) && (
-                    <td style={{ textAlign: 'center' }}>
-                      <span className={`badge ${snFromExcel(row.sn_lote) === 'S' ? 'badge-brand' : 'badge-muted'}`}>
-                        {snFromExcel(row.sn_lote) === 'S' ? 'Sim' : 'Não'}
+                    <td style={{ textAlign: 'center', padding: '4px 2px' }}>
+                      <span
+                        className={`badge ${snFromExcel(row.sn_lote) === 'S' ? 'badge-brand' : 'badge-muted'}`}
+                        style={{ fontSize: 10, padding: '1px 5px' }}
+                      >
+                        {snFromExcel(row.sn_lote) === 'S' ? 'S' : 'N'}
                       </span>
                     </td>
                   )}
                   {(importando || concluido) && (
-                    <td style={{ textAlign: 'center' }}>
-                      <span className={`badge ${snFromExcel(row.sn_validade) === 'S' ? 'badge-brand' : 'badge-muted'}`}>
-                        {snFromExcel(row.sn_validade) === 'S' ? 'Sim' : 'Não'}
+                    <td style={{ textAlign: 'center', padding: '4px 2px' }}>
+                      <span
+                        className={`badge ${snFromExcel(row.sn_validade) === 'S' ? 'badge-brand' : 'badge-muted'}`}
+                        style={{ fontSize: 10, padding: '1px 5px' }}
+                      >
+                        {snFromExcel(row.sn_validade) === 'S' ? 'S' : 'N'}
                       </span>
                     </td>
                   )}
                   {(importando || concluido) && (
-                    <td style={{ textAlign: 'center' }}>
+                    <td style={{ textAlign: 'center', padding: '4px 4px' }}>
                       {resultado?.ok === true && resultado.cdProduto ? (
-                        <span className="badge badge-success" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                        <span className="badge badge-success" style={{ fontVariantNumeric: 'tabular-nums', fontSize: 11 }}>
                           {resultado.cdProduto}
                         </span>
                       ) : (
@@ -1060,14 +1068,14 @@ function EtapaVinculo({
                     </td>
                   )}
                   {(importando || concluido) && (
-                    <td style={{ textAlign: 'center' }}>
+                    <td style={{ textAlign: 'center', padding: '4px 2px' }}>
                       {resultado === undefined ? (
-                        <Loader2 size={14} className="animate-spin" style={{ color: 'var(--text-muted)' }} />
+                        <Loader2 size={13} className="animate-spin" style={{ color: 'var(--text-muted)' }} />
                       ) : resultado.ok ? (
-                        <CheckCircle2 size={15} style={{ color: 'var(--success)' }} />
+                        <CheckCircle2 size={14} style={{ color: 'var(--success)' }} />
                       ) : (
                         <span title={resultado.erro}>
-                          <XCircle size={15} style={{ color: 'var(--danger)' }} />
+                          <XCircle size={14} style={{ color: 'var(--danger)' }} />
                         </span>
                       )}
                     </td>
