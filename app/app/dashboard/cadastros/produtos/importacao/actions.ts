@@ -87,6 +87,7 @@ export type CadastroProdutoPayload = {
   cd_sub_cla:           number
   ds_sub_cla:           string
   cd_unidade:           string
+  cd_tip_ativ?:         number
   cd_pro_fat?:          string
   cd_pro_fat_sus?:      string
   cd_procedimento_sus?: string
