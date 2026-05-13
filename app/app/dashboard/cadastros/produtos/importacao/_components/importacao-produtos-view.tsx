@@ -955,8 +955,11 @@ function EtapaVinculo({
           <colgroup>
             {!importando && !concluido && <col style={{ width: 40 }} />}
             <col />
-            <col style={{ width: importando || concluido ? '40%' : '42%' }} />
-            {(importando || concluido) && <col style={{ width: 110 }} />}
+            <col style={{ width: importando || concluido ? '32%' : '42%' }} />
+            {(importando || concluido) && <col style={{ width: 55 }} />}
+            {(importando || concluido) && <col style={{ width: 55 }} />}
+            {(importando || concluido) && <col style={{ width: 90 }} />}
+            {(importando || concluido) && <col style={{ width: 80 }} />}
           </colgroup>
           <thead>
             <tr>
@@ -974,7 +977,10 @@ function EtapaVinculo({
               )}
               <th>Produto</th>
               <th>Classificação atribuída</th>
-              {(importando || concluido) && <th>Status</th>}
+              {(importando || concluido) && <th style={{ textAlign: 'center' }}>Lote</th>}
+              {(importando || concluido) && <th style={{ textAlign: 'center' }}>Validade</th>}
+              {(importando || concluido) && <th style={{ textAlign: 'center' }}>Cód. MV</th>}
+              {(importando || concluido) && <th style={{ textAlign: 'center' }}>Status</th>}
             </tr>
           </thead>
           <tbody>
@@ -1028,6 +1034,31 @@ function EtapaVinculo({
                       </select>
                     )}
                   </td>
+                  {(importando || concluido) && (
+                    <td style={{ textAlign: 'center' }}>
+                      <span className={`badge ${snFromExcel(row.sn_lote) === 'S' ? 'badge-brand' : 'badge-muted'}`}>
+                        {snFromExcel(row.sn_lote) === 'S' ? 'Sim' : 'Não'}
+                      </span>
+                    </td>
+                  )}
+                  {(importando || concluido) && (
+                    <td style={{ textAlign: 'center' }}>
+                      <span className={`badge ${snFromExcel(row.sn_validade) === 'S' ? 'badge-brand' : 'badge-muted'}`}>
+                        {snFromExcel(row.sn_validade) === 'S' ? 'Sim' : 'Não'}
+                      </span>
+                    </td>
+                  )}
+                  {(importando || concluido) && (
+                    <td style={{ textAlign: 'center' }}>
+                      {resultado?.ok === true && resultado.cdProduto ? (
+                        <span className="badge badge-success" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                          {resultado.cdProduto}
+                        </span>
+                      ) : (
+                        <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>—</span>
+                      )}
+                    </td>
+                  )}
                   {(importando || concluido) && (
                     <td style={{ textAlign: 'center' }}>
                       {resultado === undefined ? (

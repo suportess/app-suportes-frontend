@@ -94,14 +94,14 @@ export type CadastroProdutoPayload = {
 }
 
 export type CadastroResult =
-  | { ok: true }
+  | { ok: true; cdProduto?: number }
   | { ok: false; erro: string }
 
 export async function cadastrarProduto(payload: CadastroProdutoPayload): Promise<CadastroResult> {
   try {
     const sub = await getSub()
-    await api.post('/produtos', payload, { auth0Sub: sub })
-    return { ok: true }
+    const res = await api.post<{ ds_produto: string; cd_produto?: number }>('/produtos', payload, { auth0Sub: sub })
+    return { ok: true, cdProduto: res.dados?.cd_produto ?? undefined }
   } catch (e) {
     return { ok: false, erro: e instanceof Error ? e.message : 'Erro ao cadastrar produto.' }
   }
