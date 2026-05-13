@@ -45,12 +45,22 @@ export async function parsearPlanilha(formData: FormData): Promise<ParseResult> 
     if (!sheetName) return { ok: false, erro: 'Planilha sem abas.' }
 
     const sheet = workbook.Sheets[sheetName]
-    const rows = XLSX.utils.sheet_to_json<Record<string, string>>(sheet, {
+    const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
       defval: '',
       raw:    false,   // converte tudo para string legível
     })
 
-    if (rows.length === 0) return { ok: false, erro: 'A planilha não contém dados.' }
+    if (rawRows.length === 0) return { ok: false, erro: 'A planilha não contém dados.' }
+
+    // Converte para objetos plain (XLSX pode retornar objetos com protótipos/métodos
+    // que o Next.js não consegue serializar ao passar de Server → Client Component)
+    const rows: Record<string, string>[] = rawRows.map(row => {
+      const plain: Record<string, string> = {}
+      for (const key of Object.keys(row)) {
+        plain[key] = String(row[key] ?? '')
+      }
+      return plain
+    })
 
     const headers = Object.keys(rows[0])
 
