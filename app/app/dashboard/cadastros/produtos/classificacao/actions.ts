@@ -7,6 +7,7 @@ import type {
   EspecieMvDTO,
   ClasseMvDTO,
   SubClasseMvDTO,
+  UnidadeMvDTO,
   ProdutoMvDTO,
   PagedResponse,
 } from '@/lib/types'
@@ -17,7 +18,15 @@ async function getSub(): Promise<string> {
   return s.sub
 }
 
-// ─── Espécie ─────────────────────────────────────────────────────────────────
+// ─── Unidade ────────────────────────────────────────────────────────────────────────────────
+
+export async function listarUnidades(): Promise<UnidadeMvDTO[]> {
+  const sub = await getSub()
+  const res = await api.get<UnidadeMvDTO[]>('/produtos/unidades', { auth0Sub: sub })
+  return res.dados ?? []
+}
+
+// ─── Espécie ───────────────────────────────────────────────────────────────────────────────────
 
 export async function listarEspecies(): Promise<EspecieMvDTO[]> {
   const sub = await getSub()

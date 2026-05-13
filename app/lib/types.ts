@@ -262,6 +262,13 @@ export type EmpresaProdutoPortalDTO = {
 
 // ─── Classificação MV (Espécie / Classe / Subclasse) ─────────────────────────
 
+/** Retornado por GET /api/produtos/unidades */
+export type UnidadeMvDTO = {
+  CD_UNIDADE: string
+  DS_UNIDADE: string
+  VL_FATOR: number
+}
+
 export type EspecieMvDTO = {
   CD_ESPECIE: number
   DS_ESPECIE: string
