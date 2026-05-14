@@ -104,7 +104,14 @@ export type CadastroResult =
 export async function cadastrarProduto(payload: CadastroProdutoPayload): Promise<CadastroResult> {
   try {
     const sub = await getSub()
-    const res = await api.post<{ ds_produto: string; cd_produto?: number }>('/produtos', payload, { auth0Sub: sub })
+    // Remove campos undefined/null/vazio e strings "$undefined" (artefato de serialização
+    // do Next.js Server Actions que converte undefined em "$undefined" no protocolo RSC).
+    const clean = Object.fromEntries(
+      Object.entries(payload).filter(([, v]) =>
+        v !== undefined && v !== null && v !== '' && v !== '$undefined'
+      )
+    ) as CadastroProdutoPayload
+    const res = await api.post<{ ds_produto: string; cd_produto?: number }>('/produtos', clean, { auth0Sub: sub })
     return { ok: true, cdProduto: res.dados?.cd_produto ?? undefined }
   } catch (e) {
     return { ok: false, erro: e instanceof Error ? e.message : 'Erro ao cadastrar produto.' }

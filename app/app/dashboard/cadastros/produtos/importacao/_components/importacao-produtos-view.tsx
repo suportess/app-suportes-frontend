@@ -1094,7 +1094,7 @@ function EtapaVinculo({
         cd_tip_ativ:         row.cd_tip_ativ ? Number(row.cd_tip_ativ) : undefined,
         cd_sican:            row.codigo_anvisa || undefined,
         cd_pro_fat:          row.cd_pro_fat          || undefined,
-        ds_pro_fat:          row.ds_pro_fat           || undefined,
+        ds_pro_fat:          row.ds_pro_fat ? row.ds_pro_fat.slice(0, 60) : undefined,
         cd_pro_fat_sus:      row.cd_pro_fat_sus      || undefined,
         cd_procedimento_sus: row.cd_procedimento_sus || undefined,
         empresas:            [1],
