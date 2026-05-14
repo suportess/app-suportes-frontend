@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useRef, useCallback, useEffect, useTransition, useId, useMemo } from 'react'
+import { useState, useRef, useCallback, useEffect, useTransition, useId, useMemo, Fragment } from 'react'
+import { createPortal } from 'react-dom'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import {
   useReactTable,
@@ -61,14 +62,14 @@ const ETAPAS_DEF = [
 
 function StepIndicator({ etapa }: { etapa: Etapa }) {
   return (
-    <div className="flex items-center gap-0">
+    <div className="flex items-center w-full">
       {ETAPAS_DEF.map((e, i) => {
         const done    = e.n < etapa
         const active  = e.n === etapa
         const pending = e.n > etapa
         return (
-          <div key={e.n} className="flex items-center flex-1">
-            <div className="flex items-center gap-2 flex-1">
+          <Fragment key={e.n}>
+            <div className="flex items-center gap-2 shrink-0">
               <div
                 className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold transition-all"
                 style={{
@@ -90,11 +91,11 @@ function StepIndicator({ etapa }: { etapa: Etapa }) {
             </div>
             {i < ETAPAS_DEF.length - 1 && (
               <div
-                className="h-px flex-1 mx-3"
-                style={{ background: done ? 'var(--success)' : 'var(--d2b-border)', minWidth: 24 }}
+                className="h-px flex-1 mx-4"
+                style={{ background: done ? 'var(--success)' : 'var(--d2b-border)' }}
               />
             )}
-          </div>
+          </Fragment>
         )
       })}
     </div>
@@ -183,15 +184,28 @@ function PlanilhaPreview({ headers, rows }: { headers: string[]; rows: Row[] }) 
   const tableContainerRef = useRef<HTMLDivElement>(null)
 
   const colWidths: Record<string, number> = {
-    ds_produto:          340,
-    ds_comercial:        220,
-    ds_especificacao:    300,
-    sn_lote:              80,
-    sn_validade:          90,
-    sn_medicamento:      110,
-    cd_pro_fat:          110,
-    cd_pro_fat_sus:      110,
-    cd_procedimento_sus: 145,
+    ds_produto:           340,
+    ds_comercial:         220,
+    ds_especificacao:     300,
+    sn_lote:               80,
+    sn_validade:           90,
+    sn_medicamento:       110,
+    cd_pro_fat:           200,
+    'pro. fat.':          200,
+    'pro.fat.':           200,
+    ds_pro_fat:           220,
+    cd_pro_fat_sus:       210,
+    'pro. fat. sus':      210,
+    cd_procedimento_sus:  180,
+    sn_consignado:        110,
+    cd_tip_ativ:          220,
+    codigo_anvisa:        150,
+    opme_nexo:            150,
+    opmt_nexo:            150,
+    cd_unidade:           110,
+    cd_especie:           100,
+    cd_classe:            100,
+    cd_sub_cla:           110,
   }
 
   const colLabels: Record<string, string> = {
@@ -201,15 +215,28 @@ function PlanilhaPreview({ headers, rows }: { headers: string[]; rows: Row[] }) 
     sn_lote:             'Lote',
     sn_validade:         'Validade',
     sn_medicamento:      'Medicamento',
-    cd_pro_fat:          'Pro. Fat.',
-    cd_pro_fat_sus:      'Pro. Fat. SUS',
+    cd_pro_fat:          'Código do Procedimento',
+    'pro. fat.':         'Código do Procedimento',
+    'pro.fat.':          'Código do Procedimento',
+    ds_pro_fat:          'Descrição do Procedimento',
+    cd_pro_fat_sus:      'Código do Procedimento SUS',
+    'pro. fat. sus':     'Código do Procedimento SUS',
     cd_procedimento_sus: 'Procedimento SUS',
+    sn_consignado:       'Consignado',
+    cd_tip_ativ:         'Código do Tipo de Atividade',
+    codigo_anvisa:       'Código Anvisa',
+    opme_nexo:           'Integração OPME',
+    opmt_nexo:           'Integração OPME',
+    cd_unidade:          'Unidade',
+    cd_especie:          'Espécie',
+    cd_classe:           'Classe',
+    cd_sub_cla:          'Subclasse',
   }
 
   const columns: ColumnDef<Row>[] = headers.map(h => ({
     id: h, accessorKey: h,
-    header: colLabels[h] ?? h,
-    size: colWidths[h] ?? 180,
+    header: colLabels[h.toLowerCase()] ?? h,
+    size: colWidths[h.toLowerCase()] ?? 160,
   }))
 
   const table = useReactTable({ data: rows, columns, getCoreRowModel: getCoreRowModel() })
@@ -850,35 +877,10 @@ function EtapaVinculo({
   }, [bulkEspVal, bulkClaVal, bulkSubVal, todasLinhas])
 
   // vinculos: índice em todasLinhas (não em linhas)
-  const [vinculos, setVinculos] = useState<Record<number, number>>(() => {
-    const initial: Record<number, number> = {}
-    rows.forEach((row, i) => {
-      const e = row.cd_especie?.trim()
-      const c = row.cd_classe?.trim()
-      const s = row.cd_sub_cla?.trim()
-      if (!e || !c || !s) return
-      const key = `${e}|${c}|${s}`
-      const synIdx = Array.from(
-        (function* () {
-          let idx = 0
-          const seen = new Map<string, number>()
-          rows.forEach(r => {
-            const ke = `${r.cd_especie?.trim()}|${r.cd_classe?.trim()}|${r.cd_sub_cla?.trim()}`
-            if (r.cd_especie?.trim() && r.cd_classe?.trim() && r.cd_sub_cla?.trim() && !seen.has(ke)) {
-              seen.set(ke, idx++)
-            }
-          })
-          yield seen
-        })()
-      )[0]
-      const syntheticIdx = synIdx?.get(key)
-      if (syntheticIdx !== undefined) {
-        // offset por linhas manuais (ainda vazias no init, linhas.length = 0 aqui)
-        initial[i] = syntheticIdx // será corrigido em todasLinhas após merge
-      }
-    })
-    return initial
-  })
+  // vinculos armazena apenas sobreposições MANUAIS do usuário.
+  // A correspondência inicial (da planilha) é computada dinamicamente em vinculosEfetivos
+  // via syntheticLinhas, evitando índices absolutos desatualizados quando linhas cresce.
+  const [vinculos, setVinculos] = useState<Record<number, number>>({})
 
   // Após merge, garante que vinculos pré-computados de linhas sintéticas usam índice em todasLinhas
   const vinculosEfetivos = useMemo<Record<number, number>>(() => {
@@ -903,10 +905,13 @@ function EtapaVinculo({
   const [bulkUnidade,     setBulkUnidade]     = useState('')
   const [loadingUnidades, startUnidades]      = useTransition()
 
-  // Override de unidade por linha — pré-populado a partir de cd_unidade da planilha
+  // Override de unidade por linha — pré-populado a partir de cd_unidade da planilha (case-insensitive)
   const [unidadeOverrides, setUnidadeOverrides] = useState<Record<number, string>>(
     () => Object.fromEntries(
-      rows.flatMap((row, i) => (row.cd_unidade?.trim() ? [[i, row.cd_unidade.trim()]] : []))
+      rows.flatMap((row, i) => {
+        const val = (row.cd_unidade ?? row.CD_UNIDADE ?? '').trim()
+        return val ? [[i, val]] : []
+      })
     )
   )
 
@@ -929,6 +934,15 @@ function EtapaVinculo({
   const [importando,  setImportando]  = useState(false)
   const [concluido,   setConcluido]   = useState(false)
   const [resultados,  setResultados]  = useState<Record<number, CadastroResult>>({})
+
+  // Modal de confirmação ao trocar classificação/unidade já preenchida
+  const [pendingChange, setPendingChange] = useState<{
+    titulo:     string
+    descricao:  string
+    labelAtual?: string
+    labelNovo?:  string
+    execute:    () => void
+  } | null>(null)
 
   const nomeKey = useMemo(() => {
     const candidates = ['ds_produto', 'DS_PRODUTO', 'nome', 'NOME', 'descricao', 'DESCRICAO']
@@ -986,24 +1000,40 @@ function EtapaVinculo({
 
   function aplicarAosSelecionados() {
     if (selecionados.size === 0 || !bulkEspVal || !bulkClaVal || !bulkSubVal) return
-    const idx = resolverOuAdicionarBulkLinha()
-    setVinculos(prev => {
-      const next = { ...prev }
-      selecionados.forEach(i => { next[i] = idx })
-      return next
-    })
-    setSelecionados(new Set())
+    const alvos = Array.from(selecionados)
+    const afetados = alvos.filter(i => vinculosEfetivos[i] !== undefined).length
+    const snapshot = new Set(selecionados)
+    const doApply = () => {
+      const idx = resolverOuAdicionarBulkLinha()
+      setVinculos(prev => { const next = { ...prev }; snapshot.forEach(i => { next[i] = idx }); return next })
+      setSelecionados(new Set())
+      handleBulkEspChange('')
+    }
+    if (afetados > 0) {
+      setPendingChange({
+        titulo:    'Atenção',
+        descricao: `${afetados} produto${afetados > 1 ? 's' : ''} já possui${afetados > 1 ? 'm' : ''} classificação definida. Deseja alterar?`,
+        execute:   doApply,
+      })
+    } else { doApply() }
   }
 
   function aplicarATodosVisiveis() {
     if (!bulkEspVal || !bulkClaVal || !bulkSubVal) return
-    const idx = resolverOuAdicionarBulkLinha()
-    setVinculos(prev => {
-      const next = { ...prev }
-      visiveis.forEach(({ i }) => { next[i] = idx })
-      return next
-    })
-    setSelecionados(new Set())
+    const afetados = visiveis.filter(({ i }) => vinculosEfetivos[i] !== undefined).length
+    const doApply = () => {
+      const idx = resolverOuAdicionarBulkLinha()
+      setVinculos(prev => { const next = { ...prev }; visiveis.forEach(({ i }) => { next[i] = idx }); return next })
+      setSelecionados(new Set())
+      handleBulkEspChange('')
+    }
+    if (afetados > 0) {
+      setPendingChange({
+        titulo:    'Atenção',
+        descricao: `${afetados} produto${afetados > 1 ? 's' : ''} já possui${afetados > 1 ? 'm' : ''} classificação definida. Deseja alterar?`,
+        execute:   doApply,
+      })
+    } else { doApply() }
   }
 
   // Resolve DS_UNIDADE → CD_UNIDADE antes de armazenar
@@ -1015,23 +1045,38 @@ function EtapaVinculo({
   function aplicarUnidadeAosSelecionados() {
     if (!bulkUnidade.trim() || selecionados.size === 0) return
     const cd = resolveBulkCdUnidade()
-    setUnidadeOverrides(prev => {
-      const next = { ...prev }
-      selecionados.forEach(i => { next[i] = cd })
-      return next
-    })
-    setSelecionados(new Set())
+    const afetados = Array.from(selecionados).filter(i => (unidadeOverrides[i] ?? '') !== '').length
+    const snapshot = new Set(selecionados)
+    const doApply = () => {
+      setUnidadeOverrides(prev => { const next = { ...prev }; snapshot.forEach(i => { next[i] = cd }); return next })
+      setSelecionados(new Set())
+      setBulkUnidade('')
+    }
+    if (afetados > 0) {
+      setPendingChange({
+        titulo:    'Atenção',
+        descricao: `${afetados} produto${afetados > 1 ? 's' : ''} já possui${afetados > 1 ? 'm' : ''} unidade definida. Deseja alterar?`,
+        execute:   doApply,
+      })
+    } else { doApply() }
   }
 
   function aplicarUnidadeATodosVisiveis() {
     if (!bulkUnidade.trim()) return
     const cd = resolveBulkCdUnidade()
-    setUnidadeOverrides(prev => {
-      const next = { ...prev }
-      visiveis.forEach(({ i }) => { next[i] = cd })
-      return next
-    })
-    setSelecionados(new Set())
+    const afetados = visiveis.filter(({ i }) => (unidadeOverrides[i] ?? '') !== '').length
+    const doApply = () => {
+      setUnidadeOverrides(prev => { const next = { ...prev }; visiveis.forEach(({ i }) => { next[i] = cd }); return next })
+      setSelecionados(new Set())
+      setBulkUnidade('')
+    }
+    if (afetados > 0) {
+      setPendingChange({
+        titulo:    'Atenção',
+        descricao: `${afetados} produto${afetados > 1 ? 's' : ''} já possui${afetados > 1 ? 'm' : ''} unidade definida. Deseja alterar?`,
+        execute:   doApply,
+      })
+    } else { doApply() }
   }
 
   function setVinculo(rowIdx: number, linhaIdx: number | null) {
@@ -1040,6 +1085,47 @@ function EtapaVinculo({
       if (linhaIdx === null) delete next[rowIdx]; else next[rowIdx] = linhaIdx
       return next
     })
+  }
+
+  function handleClassificacaoChange(rowIdx: number, rawValue: string) {
+    const currentIdx = vinculosEfetivos[rowIdx]
+    if (currentIdx !== undefined && rawValue !== String(currentIdx)) {
+      const novoLinhaIdx = rawValue === '' ? null : Number(rawValue)
+      setPendingChange({
+        titulo:    'Atenção',
+        descricao: 'Este produto já possui classificação definida. Deseja alterar?',
+        labelAtual: labelLinha(todasLinhas[currentIdx]),
+        labelNovo:  novoLinhaIdx !== null && todasLinhas[novoLinhaIdx]
+          ? labelLinha(todasLinhas[novoLinhaIdx])
+          : '— Sem classificação —',
+        execute: () => setVinculo(rowIdx, rawValue === '' ? null : Number(rawValue)),
+      })
+    } else {
+      setVinculo(rowIdx, rawValue === '' ? null : Number(rawValue))
+    }
+  }
+
+  function handleUnidadeChange(rowIdx: number, newCd: string) {
+    const currentCd = unidadeOverrides[rowIdx] ?? ''
+    if (currentCd !== '' && currentCd !== newCd) {
+      setPendingChange({
+        titulo:    'Atenção',
+        descricao: 'Este produto já possui unidade definida. Deseja alterar?',
+        labelAtual: unidadesList.find(u => u.CD_UNIDADE === currentCd)?.DS_UNIDADE ?? currentCd,
+        labelNovo:  newCd
+          ? (unidadesList.find(u => u.CD_UNIDADE === newCd)?.DS_UNIDADE ?? newCd)
+          : '— Sem unidade —',
+        execute: () => setUnidadeOverrides(prev => ({ ...prev, [rowIdx]: newCd })),
+      })
+    } else {
+      setUnidadeOverrides(prev => ({ ...prev, [rowIdx]: newCd }))
+    }
+  }
+
+  function confirmarPendingChange() {
+    if (!pendingChange) return
+    pendingChange.execute()
+    setPendingChange(null)
   }
 
   const labelLinha = (l: ClassificacaoLinha) =>
@@ -1051,6 +1137,14 @@ function EtapaVinculo({
       .map((row, i) => ({ row, i }))
       .filter(({ i }) => vinculosEfetivos[i] !== undefined),
   [rows, vinculosEfetivos])
+
+  function pedirConfirmacaoImportacao() {
+    setPendingChange({
+      titulo:   'Confirmar Importação',
+      descricao: 'Confirma a Importação dos Produtos para o sistema SOULMV?',
+      execute:  handleConfirmarImportacao,
+    })
+  }
 
   async function handleConfirmarImportacao() {
     setImportando(true)
@@ -1121,13 +1215,13 @@ function EtapaVinculo({
           {/* Linha 1: Classificação em massa */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto auto', gap: '0.5rem', alignItems: 'end' }}>
             <div className="flex flex-col gap-0.5">
-              <label className="text-[10px] font-medium" style={{ color: 'var(--text-muted)' }}>Espécie</label>
+              <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Espécie</label>
               <input list={uid+'-besp'} value={bulkEspVal} onChange={e => handleBulkEspChange(e.target.value)}
                 className="input-field w-full text-xs" placeholder="Selecione…" disabled={loadingEsp} autoComplete="off" />
               <datalist id={uid+'-besp'}>{especies.map(e => <option key={e.CD_ESPECIE} value={e.DS_ESPECIE}/>)}</datalist>
             </div>
             <div className="flex flex-col gap-0.5">
-              <label className="text-[10px] font-medium" style={{ color: 'var(--text-muted)' }}>Classe</label>
+              <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Classe</label>
               <input list={uid+'-bcla'} value={bulkClaVal} onChange={e => handleBulkClaChange(e.target.value)}
                 className="input-field w-full text-xs"
                 placeholder={!bulkEspVal ? '—' : loadingBulkCla ? 'Carregando…' : 'Selecione…'}
@@ -1135,30 +1229,30 @@ function EtapaVinculo({
               <datalist id={uid+'-bcla'}>{bulkClasses.map(c => <option key={c.CD_CLASSE} value={c.DS_CLASSE}/>)}</datalist>
             </div>
             <div className="flex flex-col gap-0.5">
-              <label className="text-[10px] font-medium" style={{ color: 'var(--text-muted)' }}>Subclasse</label>
+              <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Subclasse</label>
               <input list={uid+'-bsub'} value={bulkSubVal} onChange={e => handleBulkSubChange(e.target.value)}
                 className="input-field w-full text-xs"
                 placeholder={!bulkClaVal ? '—' : loadingBulkSub ? 'Carregando…' : 'Selecione…'}
                 disabled={!bulkClaVal || loadingBulkSub} autoComplete="off" />
               <datalist id={uid+'-bsub'}>{bulkSubs.map(s => <option key={s.CD_SUB_CLA} value={s.DS_SUB_CLA}/>)}</datalist>
             </div>
-            <button className="btn btn-secondary flex items-center gap-1 text-xs whitespace-nowrap"
+            <button className="btn btn-secondary text-xs" style={{ minWidth: 110, justifyContent: 'center' }}
               disabled={!bulkEspVal || !bulkClaVal || !bulkSubVal || selecionados.size === 0}
               onClick={aplicarAosSelecionados} title="Aplicar classificação aos selecionados">
-              <Check size={12}/> Selecionados{selecionados.size > 0 && <span className="badge badge-muted">{selecionados.size}</span>}
+              Selecionados{bulkEspVal && bulkClaVal && bulkSubVal && selecionados.size > 0 && <span className="badge badge-muted" style={{marginLeft:4}}>{selecionados.size}</span>}
             </button>
-            <button className="btn btn-primary flex items-center gap-1 text-xs whitespace-nowrap"
+            <button className="btn btn-primary text-xs" style={{ minWidth: 110, justifyContent: 'center' }}
               disabled={!bulkEspVal || !bulkClaVal || !bulkSubVal}
               onClick={aplicarATodosVisiveis} title="Aplicar classificação a todos visíveis">
-              <Check size={12}/> Todos<span className="badge badge-brand">{visiveis.length}</span>
+              Todos<span className="badge badge-brand" style={{marginLeft:4}}>{visiveis.length}</span>
             </button>
           </div>
 
           {/* Linha 2: Unidade + Filtro */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto auto', gap: '0.5rem', alignItems: 'end', borderTop: '1px dashed var(--border)', paddingTop: '0.4rem' }}>
             <div className="flex flex-col gap-0.5">
-              <label className="text-[10px] font-medium flex items-center gap-1" style={{ color: 'var(--text-muted)' }}>
-                <Ruler size={10}/> Unidade
+              <label className="text-xs font-medium flex items-center gap-1" style={{ color: 'var(--text-muted)' }}>
+                <Ruler size={12}/> Unidade
               </label>
               <input list={uid+'-bulk-unidades'} value={bulkUnidade} onChange={e => setBulkUnidade(e.target.value)}
                 className="input-field w-full text-xs"
@@ -1166,21 +1260,21 @@ function EtapaVinculo({
               <datalist id={uid+'-bulk-unidades'}>{unidadesList.map(u => <option key={u.CD_UNIDADE} value={u.DS_UNIDADE}/>)}</datalist>
             </div>
             <div className="flex flex-col gap-0.5">
-              <label className="text-[10px] font-medium flex items-center gap-1" style={{ color: 'var(--text-muted)' }}>
-                <Search size={10}/> Filtrar produto
+              <label className="text-xs font-medium flex items-center gap-1" style={{ color: 'var(--text-muted)' }}>
+                <Search size={12}/> Filtrar produto
               </label>
               <input className="input-field w-full text-xs" placeholder="Nome do produto…"
                 value={busca} onChange={e => setBusca(e.target.value)} />
             </div>
-            <button className="btn btn-secondary flex items-center gap-1 text-xs whitespace-nowrap"
+            <button className="btn btn-secondary text-xs" style={{ minWidth: 110, justifyContent: 'center' }}
               disabled={!bulkUnidade.trim() || selecionados.size === 0}
               onClick={aplicarUnidadeAosSelecionados} title="Aplicar unidade aos selecionados">
-              <Ruler size={12}/> Selecionados{selecionados.size > 0 && <span className="badge badge-muted">{selecionados.size}</span>}
+              Selecionados{bulkUnidade.trim() && selecionados.size > 0 && <span className="badge badge-muted" style={{marginLeft:4}}>{selecionados.size}</span>}
             </button>
-            <button className="btn btn-primary flex items-center gap-1 text-xs whitespace-nowrap"
+            <button className="btn btn-primary text-xs" style={{ minWidth: 110, justifyContent: 'center' }}
               disabled={!bulkUnidade.trim()}
               onClick={aplicarUnidadeATodosVisiveis}>
-              <Ruler size={12}/> Todos<span className="badge badge-brand">{visiveis.length}</span>
+              Todos<span className="badge badge-brand" style={{marginLeft:4}}>{visiveis.length}</span>
             </button>
           </div>
 
@@ -1264,9 +1358,7 @@ function EtapaVinculo({
                       <select
                         className="input-field w-full text-xs"
                         value={vinculoIdx ?? ''}
-                        onChange={e =>
-                          setVinculo(i, e.target.value === '' ? null : Number(e.target.value))
-                        }
+                        onChange={e => handleClassificacaoChange(i, e.target.value)}
                       >
                         <option value="">— Sem classificação —</option>
                         {todasLinhas.map((l, li) => (
@@ -1289,7 +1381,7 @@ function EtapaVinculo({
                       <select
                         className="input-field w-full text-xs"
                         value={unidadeOverrides[i] ?? ''}
-                        onChange={e => setUnidadeOverrides(prev => ({ ...prev, [i]: e.target.value }))}
+                        onChange={e => handleUnidadeChange(i, e.target.value)}
                       >
                         <option value="">— Sem unidade —</option>
                         {unidadesList.map(u => (
@@ -1386,31 +1478,89 @@ function EtapaVinculo({
         )
       })()}
 
-      <div className="flex items-center justify-between">
+      {/* ── Modal: confirmar alteração de classificação / unidade ── */}
+      {pendingChange && createPortal(
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 9999,
+            background: 'rgba(0,0,0,0.5)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}
+          onClick={() => setPendingChange(null)}
+        >
+          <div
+            className="card card-p flex flex-col gap-4"
+            style={{ maxWidth: 440, width: '90%', boxShadow: 'var(--shadow-lg)' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center gap-2">
+                <AlertTriangle size={18} style={{ color: 'var(--warning)', flexShrink: 0 }} />
+                <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+                  {pendingChange.titulo}
+                </p>
+              </div>
+              <p className="text-xs" style={{ color: 'var(--text-secondary)', paddingLeft: 26 }}>
+                {pendingChange.descricao}
+              </p>
+            </div>
+
+            {pendingChange.labelAtual !== undefined && pendingChange.labelNovo !== undefined && (
+              <div
+                className="flex flex-col gap-2 p-3 rounded"
+                style={{ background: 'var(--surface-alt, var(--bg-secondary))', border: '1px solid var(--border)' }}
+              >
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="font-medium shrink-0" style={{ color: 'var(--text-muted)', width: 40 }}>Atual</span>
+                  <span className="badge badge-muted" style={{ overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>
+                    {pendingChange.labelAtual}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="font-medium shrink-0" style={{ color: 'var(--text-muted)', width: 40 }}>Novo</span>
+                  <span className="badge badge-brand" style={{ overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>
+                    {pendingChange.labelNovo}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2 pt-1">
+              <button className="btn btn-secondary" onClick={() => setPendingChange(null)}>
+                Não
+              </button>
+              <button
+                className="btn btn-gradient"
+                onClick={confirmarPendingChange}
+              >
+                Sim
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
         <button
-          className="btn btn-secondary flex items-center gap-1.5"
+          className="btn btn-secondary"
+          style={{ alignSelf: 'center' }}
           onClick={onBack}
           disabled={importando}
         >
-          <ChevronLeft size={15} /> Voltar
+          Voltar
         </button>
         {!concluido && (
           <button
             className="btn btn-gradient flex items-center gap-1.5"
+            style={{ alignSelf: 'center' }}
             disabled={totalVinculados === 0 || importando}
-            onClick={handleConfirmarImportacao}
+            onClick={pedirConfirmacaoImportacao}
           >
             {importando ? (
               <><Loader2 size={14} className="animate-spin" /> Importando…</>
             ) : (
-              <>
-                <FileCheck2 size={15} /> Confirmar Importação
-                {totalVinculados > 0 && (
-                  <span className="badge badge-brand" style={{ marginLeft: 4 }}>
-                    {totalVinculados}
-                  </span>
-                )}
-              </>
+              <>Confirmar Importação{totalVinculados > 0 && <span className="badge badge-brand" style={{ marginLeft: 4 }}>{totalVinculados}</span>}</>
             )}
           </button>
         )}
@@ -1516,7 +1666,7 @@ export function ImportacaoProdutosView({ empresaConf }: { empresaConf: EmpresaDT
             >
               {loading
                 ? <><Loader2 size={15} className="animate-spin" /> Processando…</>
-                : <><ChevronRight size={15} /> Processar Planilha</>}
+                : 'Processar Planilha'}
             </button>
           </div>
         </div>
@@ -1526,15 +1676,12 @@ export function ImportacaoProdutosView({ empresaConf }: { empresaConf: EmpresaDT
       {etapa === 1 && resultado && (
         <>
           <PlanilhaPreview headers={resultado.headers} rows={resultado.rows} />
-          <div className="flex items-center justify-between">
-            <button className="btn btn-secondary flex items-center gap-1.5" onClick={handleClear}>
-              <RotateCcw size={13} /> Recomeçar
+          <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <button className="btn btn-secondary" style={{ alignSelf: 'center' }} onClick={handleClear}>
+              Recomeçar
             </button>
-            <button
-              className="btn btn-gradient flex items-center gap-1.5"
-              onClick={() => setEtapa(2)}
-            >
-              Próxima Etapa <ChevronRight size={15} />
+            <button className="btn btn-gradient" style={{ alignSelf: 'center' }} onClick={() => setEtapa(2)}>
+              Próxima Etapa
             </button>
           </div>
         </>
