@@ -28,7 +28,7 @@ import type { EmpresaDTO, EspecieMvDTO, ClasseMvDTO, SubClasseMvDTO, UnidadeMvDT
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
-type Etapa = 1 | 2 | 3 | 4
+type Etapa = 1 | 2
 type Row = Record<string, string>
 
 export interface ClassificacaoLinha {
@@ -56,9 +56,7 @@ const ACCEPT = '.xlsx,.xls,.csv'
 
 const ETAPAS_DEF = [
   { n: 1 as Etapa, label: 'Carregar Arquivo' },
-  { n: 2 as Etapa, label: 'Classificação' },
-  { n: 3 as Etapa, label: 'Unidade' },
-  { n: 4 as Etapa, label: 'Revisão' },
+  { n: 2 as Etapa, label: 'Revisão' },
 ]
 
 function StepIndicator({ etapa }: { etapa: Etapa }) {
@@ -736,19 +734,196 @@ function snFromExcel(val: string): 'S' | 'N' {
 
 function EtapaVinculo({
   resultado,
-  linhas,
+  linhas: linhasExternas,
   onBack,
 }: {
   resultado: Extract<ParseResult, { ok: true }>
-  linhas: ClassificacaoLinha[]
+  linhas?: ClassificacaoLinha[]
   onBack: () => void
 }) {
   const { rows, headers, total } = resultado
 
+  const uid = useId()
+
+  // ── Linhas manuais (adicionadas pelo usuário nesta tela) ─────────────────────
+  const [linhas, setLinhas] = useState<ClassificacaoLinha[]>(linhasExternas ?? [])
+
+  const [especies,   setEspecies] = useState<EspecieMvDTO[]>([])
+  const [loadingEsp, startEsp]   = useTransition()
+
+  useEffect(() => {
+    startEsp(async () => setEspecies(await listarEspecies()))
+  }, [])
+
+
+
+  // Linhas sintéticas — placeholder inicial, substituído pelas descrições reais do MV ao montar
+  const [syntheticLinhas, setSyntheticLinhas] = useState<ClassificacaoLinha[]>(() => {
+    const seen = new Map<string, ClassificacaoLinha>()
+    rows.forEach(row => {
+      const e = row.cd_especie?.trim()
+      const c = row.cd_classe?.trim()
+      const s = row.cd_sub_cla?.trim()
+      if (!e || !c || !s) return
+      const key = `${e}|${c}|${s}`
+      if (!seen.has(key)) {
+        seen.set(key, {
+          especieTexto:   `Espécie ${e}`,
+          classeTexto:    `Classe ${c}`,
+          subclasseTexto: `Sub ${s}`,
+          cdEspecie:      Number(e),
+          cdClasse:       Number(c),
+          cdSubCla:       Number(s),
+        })
+      }
+    })
+    return Array.from(seen.values())
+  })
+
+  // Resolve descrições reais para linhas sintéticas (uma única vez ao montar)
+  const [, startSynthetic] = useTransition()
+  useEffect(() => {
+    if (syntheticLinhas.length === 0) return
+    startSynthetic(async () => {
+      const especies = await listarEspecies()
+      const updated = await Promise.all(
+        syntheticLinhas.map(async l => {
+          const especie = especies.find(e => e.CD_ESPECIE === l.cdEspecie)
+          if (!especie || l.cdEspecie === undefined || l.cdClasse === undefined || l.cdSubCla === undefined) return l
+          const classes = await listarClasses(especie.CD_ESPECIE)
+          const classe = classes.find(c => c.CD_CLASSE === l.cdClasse)
+          if (!classe) return { ...l, especieTexto: especie.DS_ESPECIE }
+          const subclasses = await listarSubClasses(especie.CD_ESPECIE, classe.CD_CLASSE)
+          const subclasse = subclasses.find(s => s.CD_SUB_CLA === l.cdSubCla)
+          return {
+            ...l,
+            especieTexto:   especie.DS_ESPECIE,
+            classeTexto:    classe.DS_CLASSE,
+            subclasseTexto: subclasse?.DS_SUB_CLA ?? l.subclasseTexto,
+          }
+        })
+      )
+      setSyntheticLinhas(updated)
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Todas as linhas visíveis no select: manuais (da Etapa 2) + sintéticas (da planilha)
+  const todasLinhas = useMemo<ClassificacaoLinha[]>(
+    () => [...linhas, ...syntheticLinhas],
+    [linhas, syntheticLinhas]
+  )
+
   const [busca,        setBusca]        = useState('')
   const [selecionados, setSelecionados] = useState<Set<number>>(new Set())
-  const [vinculos,     setVinculos]     = useState<Record<number, number>>({})
-  const [bulkLinhaIdx, setBulkLinhaIdx] = useState(0)
+
+  // Seletores em cascata para aplicação em massa de classificação
+  const [bulkEspVal,  setBulkEspVal]  = useState('')
+  const [bulkClaVal,  setBulkClaVal]  = useState('')
+  const [bulkSubVal,  setBulkSubVal]  = useState('')
+  const [bulkClasses, setBulkClasses] = useState<ClasseMvDTO[]>([])
+  const [bulkSubs,    setBulkSubs]    = useState<SubClasseMvDTO[]>([])
+  const [loadingBulkCla, startBulkCla] = useTransition()
+  const [loadingBulkSub, startBulkSub] = useTransition()
+
+  function handleBulkEspChange(val: string) {
+    setBulkEspVal(val); setBulkClaVal(''); setBulkSubVal('')
+    setBulkClasses([]); setBulkSubs([])
+    const m = especies.find(e => e.DS_ESPECIE === val)
+    if (m) startBulkCla(async () => setBulkClasses(await listarClasses(m.CD_ESPECIE)))
+  }
+  function handleBulkClaChange(val: string) {
+    setBulkClaVal(val); setBulkSubVal('')
+    setBulkSubs([])
+    const esp = especies.find(e => e.DS_ESPECIE === bulkEspVal)
+    const cla = bulkClasses.find(c => c.DS_CLASSE === val)
+    if (esp && cla) startBulkSub(async () => setBulkSubs(await listarSubClasses(esp.CD_ESPECIE, cla.CD_CLASSE)))
+  }
+  function handleBulkSubChange(val: string) { setBulkSubVal(val) }
+
+  // Resolve os 3 selects em massa para um índice em todasLinhas
+  const bulkLinhaIdx = useMemo(() => {
+    if (!bulkEspVal || !bulkClaVal || !bulkSubVal) return -1
+    return todasLinhas.findIndex(
+      l => l.especieTexto === bulkEspVal && l.classeTexto === bulkClaVal && l.subclasseTexto === bulkSubVal
+    )
+  }, [bulkEspVal, bulkClaVal, bulkSubVal, todasLinhas])
+
+  // vinculos: índice em todasLinhas (não em linhas)
+  const [vinculos, setVinculos] = useState<Record<number, number>>(() => {
+    const initial: Record<number, number> = {}
+    rows.forEach((row, i) => {
+      const e = row.cd_especie?.trim()
+      const c = row.cd_classe?.trim()
+      const s = row.cd_sub_cla?.trim()
+      if (!e || !c || !s) return
+      const key = `${e}|${c}|${s}`
+      const synIdx = Array.from(
+        (function* () {
+          let idx = 0
+          const seen = new Map<string, number>()
+          rows.forEach(r => {
+            const ke = `${r.cd_especie?.trim()}|${r.cd_classe?.trim()}|${r.cd_sub_cla?.trim()}`
+            if (r.cd_especie?.trim() && r.cd_classe?.trim() && r.cd_sub_cla?.trim() && !seen.has(ke)) {
+              seen.set(ke, idx++)
+            }
+          })
+          yield seen
+        })()
+      )[0]
+      const syntheticIdx = synIdx?.get(key)
+      if (syntheticIdx !== undefined) {
+        // offset por linhas manuais (ainda vazias no init, linhas.length = 0 aqui)
+        initial[i] = syntheticIdx // será corrigido em todasLinhas após merge
+      }
+    })
+    return initial
+  })
+
+  // Após merge, garante que vinculos pré-computados de linhas sintéticas usam índice em todasLinhas
+  const vinculosEfetivos = useMemo<Record<number, number>>(() => {
+    if (syntheticLinhas.length === 0) return vinculos
+    const result = { ...vinculos }
+    rows.forEach((row, i) => {
+      if (result[i] !== undefined) return // já definido manualmente
+      const e = row.cd_especie?.trim()
+      const c = row.cd_classe?.trim()
+      const s = row.cd_sub_cla?.trim()
+      if (!e || !c || !s) return
+      const synIdx = syntheticLinhas.findIndex(
+        l => l.cdEspecie === Number(e) && l.cdClasse === Number(c) && l.cdSubCla === Number(s)
+      )
+      if (synIdx !== -1) result[i] = linhas.length + synIdx
+    })
+    return result
+  }, [vinculos, syntheticLinhas, linhas, rows])
+
+  // Unidades — carregadas para o bulk e para resolver overrides
+  const [unidadesList,    setUnidadesList]    = useState<UnidadeMvDTO[]>([])
+  const [bulkUnidade,     setBulkUnidade]     = useState('')
+  const [loadingUnidades, startUnidades]      = useTransition()
+
+  // Override de unidade por linha — pré-populado a partir de cd_unidade da planilha
+  const [unidadeOverrides, setUnidadeOverrides] = useState<Record<number, string>>(
+    () => Object.fromEntries(
+      rows.flatMap((row, i) => (row.cd_unidade?.trim() ? [[i, row.cd_unidade.trim()]] : []))
+    )
+  )
+
+  useEffect(() => {
+    startUnidades(async () => {
+      const res = await listarUnidades()
+      setUnidadesList(res)
+    })
+  }, [])
+
+  // Resolve texto (DS_UNIDADE ou CD_UNIDADE) → CD_UNIDADE
+  function resolveUnidade(text: string): string | undefined {
+    const t = text.trim()
+    if (!t) return undefined
+    const matched = unidadesList.find(u => u.DS_UNIDADE === t || u.CD_UNIDADE === t)
+    return matched?.CD_UNIDADE ?? t
+  }
 
   // Estado de importação
   const [importando,  setImportando]  = useState(false)
@@ -767,7 +942,7 @@ function EtapaVinculo({
       .filter(({ row }) => !q || (row[nomeKey] ?? '').toLowerCase().includes(q))
   }, [rows, nomeKey, busca])
 
-  const totalVinculados      = Object.keys(vinculos).length
+  const totalVinculados      = Object.keys(vinculosEfetivos).length
   const todosVisivelMarcados = visiveis.length > 0 && visiveis.every(({ i }) => selecionados.has(i))
   const alguemVisivel        = visiveis.some(({ i }) => selecionados.has(i))
 
@@ -788,20 +963,72 @@ function EtapaVinculo({
     })
   }
 
+  // Resolve os selects bulk para um índice em todasLinhas.
+  // Se a combinação não existe ainda em todasLinhas, adiciona automaticamente a linhas.
+  function resolverOuAdicionarBulkLinha(): number {
+    const idx = todasLinhas.findIndex(
+      l => l.especieTexto === bulkEspVal && l.classeTexto === bulkClaVal && l.subclasseTexto === bulkSubVal
+    )
+    if (idx >= 0) return idx
+    // Auto-adicionar
+    const novaLinha: ClassificacaoLinha = {
+      especieTexto: bulkEspVal,
+      classeTexto:  bulkClaVal,
+      subclasseTexto: bulkSubVal,
+      cdEspecie: especies.find(e => e.DS_ESPECIE === bulkEspVal)?.CD_ESPECIE,
+      cdClasse:  bulkClasses.find(c => c.DS_CLASSE === bulkClaVal)?.CD_CLASSE,
+      cdSubCla:  bulkSubs.find(s => s.DS_SUB_CLA === bulkSubVal)?.CD_SUB_CLA,
+    }
+    const novoIdx = linhas.length // posição em todasLinhas após a adição
+    setLinhas(prev => [...prev, novaLinha])
+    return novoIdx
+  }
+
   function aplicarAosSelecionados() {
-    if (selecionados.size === 0) return
+    if (selecionados.size === 0 || !bulkEspVal || !bulkClaVal || !bulkSubVal) return
+    const idx = resolverOuAdicionarBulkLinha()
     setVinculos(prev => {
       const next = { ...prev }
-      selecionados.forEach(i => { next[i] = bulkLinhaIdx })
+      selecionados.forEach(i => { next[i] = idx })
       return next
     })
     setSelecionados(new Set())
   }
 
   function aplicarATodosVisiveis() {
+    if (!bulkEspVal || !bulkClaVal || !bulkSubVal) return
+    const idx = resolverOuAdicionarBulkLinha()
     setVinculos(prev => {
       const next = { ...prev }
-      visiveis.forEach(({ i }) => { next[i] = bulkLinhaIdx })
+      visiveis.forEach(({ i }) => { next[i] = idx })
+      return next
+    })
+    setSelecionados(new Set())
+  }
+
+  // Resolve DS_UNIDADE → CD_UNIDADE antes de armazenar
+  function resolveBulkCdUnidade(): string {
+    const found = unidadesList.find(u => u.DS_UNIDADE === bulkUnidade || u.CD_UNIDADE === bulkUnidade)
+    return found?.CD_UNIDADE ?? bulkUnidade
+  }
+
+  function aplicarUnidadeAosSelecionados() {
+    if (!bulkUnidade.trim() || selecionados.size === 0) return
+    const cd = resolveBulkCdUnidade()
+    setUnidadeOverrides(prev => {
+      const next = { ...prev }
+      selecionados.forEach(i => { next[i] = cd })
+      return next
+    })
+    setSelecionados(new Set())
+  }
+
+  function aplicarUnidadeATodosVisiveis() {
+    if (!bulkUnidade.trim()) return
+    const cd = resolveBulkCdUnidade()
+    setUnidadeOverrides(prev => {
+      const next = { ...prev }
+      visiveis.forEach(({ i }) => { next[i] = cd })
       return next
     })
     setSelecionados(new Set())
@@ -822,15 +1049,15 @@ function EtapaVinculo({
   const vinculadosOrdenados = useMemo(() =>
     rows
       .map((row, i) => ({ row, i }))
-      .filter(({ i }) => vinculos[i] !== undefined),
-  [rows, vinculos])
+      .filter(({ i }) => vinculosEfetivos[i] !== undefined),
+  [rows, vinculosEfetivos])
 
   async function handleConfirmarImportacao() {
     setImportando(true)
     const novosResultados: Record<number, CadastroResult> = {}
 
     for (const { row, i } of vinculadosOrdenados) {
-      const linha = linhas[vinculos[i]]
+      const linha = todasLinhas[vinculosEfetivos[i]]
 
       if (linha.cdEspecie === undefined || linha.cdClasse === undefined || linha.cdSubCla === undefined) {
         novosResultados[i] = { ok: false, erro: 'Classificação sem códigos resolvidos no MV.' }
@@ -838,7 +1065,12 @@ function EtapaVinculo({
         continue
       }
 
-      if (!linha.cdUnidade) {
+      // Unidade efetiva: override da tela/planilha tem prioridade sobre a linha de classificação
+      const cdUnidadeEfetiva = unidadeOverrides[i]
+        ? (resolveUnidade(unidadeOverrides[i]) ?? linha.cdUnidade)
+        : linha.cdUnidade
+
+      if (!cdUnidadeEfetiva) {
         novosResultados[i] = { ok: false, erro: 'Unidade não resolvida no MV.' }
         setResultados({ ...novosResultados })
         continue
@@ -846,20 +1078,23 @@ function EtapaVinculo({
 
       const payload: CadastroProdutoPayload = {
         ds_produto:          row.ds_produto ?? '',
-        ds_comercial:        row.ds_comercial  || undefined,
-        ds_especificacao:    row.ds_especificacao || undefined,
+        ds_comercial:        row.ds_produto || undefined,
+        ds_especificacao:    row.ds_produto || undefined,
         sn_lote:             snFromExcel(row.sn_lote),
         sn_validade:         snFromExcel(row.sn_validade),
         sn_medicamento:      snFromExcel(row.sn_medicamento),
         sn_consignado:       snFromExcel(row.sn_consignado),
+        sn_opme:             snFromExcel(row.opme_nexo),
         tp_sexo:             'A',
         cd_especie:          linha.cdEspecie,
         cd_classe:           linha.cdClasse,
         cd_sub_cla:          linha.cdSubCla,
         ds_sub_cla:          linha.subclasseTexto,
-        cd_unidade:          linha.cdUnidade,
+        cd_unidade:          cdUnidadeEfetiva,
         cd_tip_ativ:         row.cd_tip_ativ ? Number(row.cd_tip_ativ) : undefined,
+        cd_sican:            row.codigo_anvisa || undefined,
         cd_pro_fat:          row.cd_pro_fat          || undefined,
+        ds_pro_fat:          row.ds_pro_fat           || undefined,
         cd_pro_fat_sus:      row.cd_pro_fat_sus      || undefined,
         cd_procedimento_sus: row.cd_procedimento_sus || undefined,
         empresas:            [1],
@@ -875,94 +1110,95 @@ function EtapaVinculo({
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-2">
 
-      {/* Cabeçalho de resumo */}
-      <div
-        className="card card-p flex flex-wrap items-center gap-3"
-        style={{ background: 'var(--brand-muted)', borderColor: 'var(--brand-border)' }}
-      >
-        <Tags size={15} style={{ color: 'var(--brand)', flexShrink: 0 }} />
-        <div className="flex flex-wrap gap-1.5 flex-1 min-w-0">
-          {linhas.map((l, i) => (
-            <span key={i} className="badge badge-brand text-xs">{labelLinha(l)}</span>
-          ))}
-        </div>
-        <span className="badge badge-muted text-xs whitespace-nowrap">
-          {totalVinculados}/{total} vinculado{totalVinculados !== 1 ? 's' : ''}
-        </span>
-      </div>
+
 
       {/* Barra de controles — oculta durante/após importação */}
       {!importando && !concluido && (
-        <div className="card card-p flex flex-col gap-3">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs font-medium whitespace-nowrap" style={{ color: 'var(--text-secondary)' }}>
-              Aplicar em massa:
-            </span>
-            <select
-              className="input-field text-xs flex-1"
-              style={{ minWidth: 180 }}
-              value={bulkLinhaIdx}
-              onChange={e => setBulkLinhaIdx(Number(e.target.value))}
-            >
-              {linhas.map((l, i) => (
-                <option key={i} value={i}>{labelLinha(l)}</option>
-              ))}
-            </select>
-            <button
-              className="btn btn-secondary flex items-center gap-1.5 whitespace-nowrap"
-              disabled={selecionados.size === 0}
-              onClick={aplicarAosSelecionados}
-              title={selecionados.size === 0 ? 'Selecione ao menos um produto na tabela' : undefined}
-            >
-              <Check size={13} />
-              Selecionados{selecionados.size > 0 && (
-                <span className="badge badge-muted" style={{ marginLeft: 2 }}>{selecionados.size}</span>
-              )}
+        <div className="card" style={{ padding: '0.5rem 0.75rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+
+          {/* Linha 1: Classificação em massa */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto auto', gap: '0.5rem', alignItems: 'end' }}>
+            <div className="flex flex-col gap-0.5">
+              <label className="text-[10px] font-medium" style={{ color: 'var(--text-muted)' }}>Espécie</label>
+              <input list={uid+'-besp'} value={bulkEspVal} onChange={e => handleBulkEspChange(e.target.value)}
+                className="input-field w-full text-xs" placeholder="Selecione…" disabled={loadingEsp} autoComplete="off" />
+              <datalist id={uid+'-besp'}>{especies.map(e => <option key={e.CD_ESPECIE} value={e.DS_ESPECIE}/>)}</datalist>
+            </div>
+            <div className="flex flex-col gap-0.5">
+              <label className="text-[10px] font-medium" style={{ color: 'var(--text-muted)' }}>Classe</label>
+              <input list={uid+'-bcla'} value={bulkClaVal} onChange={e => handleBulkClaChange(e.target.value)}
+                className="input-field w-full text-xs"
+                placeholder={!bulkEspVal ? '—' : loadingBulkCla ? 'Carregando…' : 'Selecione…'}
+                disabled={!bulkEspVal || loadingBulkCla} autoComplete="off" />
+              <datalist id={uid+'-bcla'}>{bulkClasses.map(c => <option key={c.CD_CLASSE} value={c.DS_CLASSE}/>)}</datalist>
+            </div>
+            <div className="flex flex-col gap-0.5">
+              <label className="text-[10px] font-medium" style={{ color: 'var(--text-muted)' }}>Subclasse</label>
+              <input list={uid+'-bsub'} value={bulkSubVal} onChange={e => handleBulkSubChange(e.target.value)}
+                className="input-field w-full text-xs"
+                placeholder={!bulkClaVal ? '—' : loadingBulkSub ? 'Carregando…' : 'Selecione…'}
+                disabled={!bulkClaVal || loadingBulkSub} autoComplete="off" />
+              <datalist id={uid+'-bsub'}>{bulkSubs.map(s => <option key={s.CD_SUB_CLA} value={s.DS_SUB_CLA}/>)}</datalist>
+            </div>
+            <button className="btn btn-secondary flex items-center gap-1 text-xs whitespace-nowrap"
+              disabled={!bulkEspVal || !bulkClaVal || !bulkSubVal || selecionados.size === 0}
+              onClick={aplicarAosSelecionados} title="Aplicar classificação aos selecionados">
+              <Check size={12}/> Selecionados{selecionados.size > 0 && <span className="badge badge-muted">{selecionados.size}</span>}
             </button>
-            <button
-              className="btn btn-primary flex items-center gap-1.5 whitespace-nowrap"
-              onClick={aplicarATodosVisiveis}
-            >
-              <Check size={13} />
-              Todos{busca ? ' filtrados' : ''}
-              <span className="badge badge-brand" style={{ marginLeft: 2 }}>{visiveis.length}</span>
+            <button className="btn btn-primary flex items-center gap-1 text-xs whitespace-nowrap"
+              disabled={!bulkEspVal || !bulkClaVal || !bulkSubVal}
+              onClick={aplicarATodosVisiveis} title="Aplicar classificação a todos visíveis">
+              <Check size={12}/> Todos<span className="badge badge-brand">{visiveis.length}</span>
             </button>
           </div>
 
-          <div
-            className="relative"
-            style={{ borderTop: '1px solid var(--border)', paddingTop: '0.75rem' }}
-          >
-            <Search
-              size={13}
-              className="absolute left-3 top-1/2 -translate-y-1/2"
-              style={{ color: 'var(--text-muted)', top: 'calc(50% + 0.375rem)' }}
-            />
-            <input
-              className="input-field w-full pl-8"
-              placeholder="Filtrar por nome do produto…"
-              value={busca}
-              onChange={e => setBusca(e.target.value)}
-            />
+          {/* Linha 2: Unidade + Filtro */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto auto', gap: '0.5rem', alignItems: 'end', borderTop: '1px dashed var(--border)', paddingTop: '0.4rem' }}>
+            <div className="flex flex-col gap-0.5">
+              <label className="text-[10px] font-medium flex items-center gap-1" style={{ color: 'var(--text-muted)' }}>
+                <Ruler size={10}/> Unidade
+              </label>
+              <input list={uid+'-bulk-unidades'} value={bulkUnidade} onChange={e => setBulkUnidade(e.target.value)}
+                className="input-field w-full text-xs"
+                placeholder={loadingUnidades ? 'Carregando…' : 'Selecione…'} disabled={loadingUnidades} autoComplete="off" />
+              <datalist id={uid+'-bulk-unidades'}>{unidadesList.map(u => <option key={u.CD_UNIDADE} value={u.DS_UNIDADE}/>)}</datalist>
+            </div>
+            <div className="flex flex-col gap-0.5">
+              <label className="text-[10px] font-medium flex items-center gap-1" style={{ color: 'var(--text-muted)' }}>
+                <Search size={10}/> Filtrar produto
+              </label>
+              <input className="input-field w-full text-xs" placeholder="Nome do produto…"
+                value={busca} onChange={e => setBusca(e.target.value)} />
+            </div>
+            <button className="btn btn-secondary flex items-center gap-1 text-xs whitespace-nowrap"
+              disabled={!bulkUnidade.trim() || selecionados.size === 0}
+              onClick={aplicarUnidadeAosSelecionados} title="Aplicar unidade aos selecionados">
+              <Ruler size={12}/> Selecionados{selecionados.size > 0 && <span className="badge badge-muted">{selecionados.size}</span>}
+            </button>
+            <button className="btn btn-primary flex items-center gap-1 text-xs whitespace-nowrap"
+              disabled={!bulkUnidade.trim()}
+              onClick={aplicarUnidadeATodosVisiveis}>
+              <Ruler size={12}/> Todos<span className="badge badge-brand">{visiveis.length}</span>
+            </button>
           </div>
+
         </div>
       )}
 
       {/* Tabela de produtos */}
       <div className="card" style={{ overflow: 'hidden' }}>
-        <table className="data-table" style={{ tableLayout: 'fixed', width: '100%' }}>
+        <table className="data-table" style={{ tableLayout: 'fixed', width: '100%', fontSize: 12 }}>
           <colgroup>
-            {!importando && !concluido && <col style={{ width: 40 }} />}
-            {/* Produto: ~50% da largura da tabela */}
-            <col style={{ width: '50%' }} />
-            {/* Classificação: ~28% — fica próxima ao produto */}
-            <col style={{ width: '28%' }} />
-            {(importando || concluido) && <col style={{ width: 46 }} />}
-            {(importando || concluido) && <col style={{ width: 46 }} />}
+            {!importando && !concluido && <col style={{ width: 32 }} />}
+            <col />
+            <col style={{ width: '30%' }} />
+            <col style={{ width: '16%' }} />
+            {(importando || concluido) && <col style={{ width: 40 }} />}
+            {(importando || concluido) && <col style={{ width: 40 }} />}
             {(importando || concluido) && <col style={{ width: 88 }} />}
-            {(importando || concluido) && <col style={{ width: 46 }} />}
+            {(importando || concluido) && <col style={{ width: 36 }} />}
           </colgroup>
           <thead>
             <tr>
@@ -980,6 +1216,7 @@ function EtapaVinculo({
               )}
               <th>Produto</th>
               <th>Classificação</th>
+              <th>Unidade</th>
               {(importando || concluido) && <th style={{ textAlign: 'center', fontSize: 11 }}>Lote</th>}
               {(importando || concluido) && <th style={{ textAlign: 'center', fontSize: 11 }}>Val.</th>}
               {(importando || concluido) && <th style={{ textAlign: 'center', fontSize: 11 }}>Cód. MV</th>}
@@ -988,17 +1225,18 @@ function EtapaVinculo({
           </thead>
           <tbody>
             {(importando || concluido ? vinculadosOrdenados : visiveis).map(({ row, i }) => {
-              const vinculoIdx = vinculos[i] ?? null
+              const vinculoIdx = vinculosEfetivos[i] ?? null
               const resultado  = resultados[i]
               return (
                 <tr
                   key={i}
-                  style={
-                    resultado?.ok === true  ? { background: 'var(--success-muted)' } :
-                    resultado?.ok === false ? { background: 'var(--danger-muted)'  } :
-                    selecionados.has(i)     ? { background: 'var(--brand-muted)'   } :
-                    undefined
-                  }
+                  style={{
+                    fontSize: 12,
+                    ...(resultado?.ok === true  ? { background: 'var(--success-muted)' } :
+                        resultado?.ok === false ? { background: 'var(--danger-muted)'  } :
+                        selecionados.has(i)     ? { background: 'var(--brand-muted)'   } :
+                        {})
+                  }}
                 >
                   {!importando && !concluido && (
                     <td>
@@ -1020,7 +1258,7 @@ function EtapaVinculo({
                         className="text-xs"
                         style={{ color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}
                       >
-                        {vinculoIdx !== null ? labelLinha(linhas[vinculoIdx]) : '—'}
+                        {vinculoIdx !== null ? labelLinha(todasLinhas[vinculoIdx]) : '—'}
                       </span>
                     ) : (
                       <select
@@ -1031,8 +1269,31 @@ function EtapaVinculo({
                         }
                       >
                         <option value="">— Sem classificação —</option>
-                        {linhas.map((l, li) => (
-                          <option key={li} value={li}>{labelLinha(l)}</option>
+                        {todasLinhas.map((l, li) => (
+                          <option key={li} value={li}>
+                            {labelLinha(l)}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </td>
+                  <td style={{ overflow: 'hidden' }}>
+                    {importando || concluido ? (
+                      <span
+                        className="text-xs"
+                        style={{ color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}
+                      >
+                        {unidadeOverrides[i] || (vinculoIdx !== null ? todasLinhas[vinculoIdx].dsUnidade : null) || '—'}
+                      </span>
+                    ) : (
+                      <select
+                        className="input-field w-full text-xs"
+                        value={unidadeOverrides[i] ?? ''}
+                        onChange={e => setUnidadeOverrides(prev => ({ ...prev, [i]: e.target.value }))}
+                      >
+                        <option value="">— Sem unidade —</option>
+                        {unidadesList.map(u => (
+                          <option key={u.CD_UNIDADE} value={u.CD_UNIDADE}>{u.CD_UNIDADE} — {u.DS_UNIDADE}</option>
                         ))}
                       </select>
                     )}
@@ -1087,7 +1348,7 @@ function EtapaVinculo({
             {!importando && !concluido && visiveis.length === 0 && (
               <tr>
                 <td
-                  colSpan={3}
+                  colSpan={4}
                   style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}
                 >
                   Nenhum produto encontrado para &quot;{busca}&quot;.
@@ -1170,9 +1431,6 @@ export function ImportacaoProdutosView({ empresaConf }: { empresaConf: EmpresaDT
   const [erro,       setErro]       = useState<string | null>(null)
   const [resultado,  setResultado]  = useState<Extract<ParseResult, { ok: true }> | null>(null)
 
-  // Etapa 2
-  const [linhas, setLinhas] = useState<ClassificacaoLinha[]>([])
-
   const inputRef = useRef<HTMLInputElement>(null)
 
   const validarArquivo = (f: File): boolean => {
@@ -1198,7 +1456,7 @@ export function ImportacaoProdutosView({ empresaConf }: { empresaConf: EmpresaDT
   }, [handleFile])
 
   const handleClear = () => {
-    setFile(null); setErro(null); setResultado(null); setLinhas([]); setEtapa(1)
+    setFile(null); setErro(null); setResultado(null); setEtapa(1)
   }
 
   const handleProcessar = async () => {
@@ -1218,26 +1476,10 @@ export function ImportacaoProdutosView({ empresaConf }: { empresaConf: EmpresaDT
   }
 
   return (
-    <div className="flex flex-col gap-6">
-
-      {/* Empresa ativa */}
-      <div className="card card-p flex items-center gap-3">
-        <div
-          className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-          style={{ background: 'var(--brand-muted)' }}
-        >
-          <FileSpreadsheet size={16} style={{ color: 'var(--brand)' }} />
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Empresa destino</p>
-          <p className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>
-            {empresaConf.nmEmpresa}
-          </p>
-        </div>
-      </div>
+    <div className="flex flex-col gap-3">
 
       {/* Indicador de etapas */}
-      <div className="card card-p">
+      <div className="card card-p py-2.5">
         <StepIndicator etapa={etapa} />
       </div>
 
@@ -1298,29 +1540,11 @@ export function ImportacaoProdutosView({ empresaConf }: { empresaConf: EmpresaDT
         </>
       )}
 
-      {/* ── Etapa 2: Classificação ── */}
-      {etapa === 2 && (
-        <EtapaClassificacao
-          onConfirm={sel => { setLinhas(sel); setEtapa(3) }}
-          onBack={() => setEtapa(1)}
-        />
-      )}
-
-      {/* ── Etapa 3: Unidade ── */}
-      {etapa === 3 && (
-        <EtapaUnidade
-          linhas={linhas}
-          onConfirm={linhasComUnidade => { setLinhas(linhasComUnidade); setEtapa(4) }}
-          onBack={() => setEtapa(2)}
-        />
-      )}
-
-      {/* ── Etapa 4: Vínculo ── */}
-      {etapa === 4 && resultado && (
+      {/* ── Etapa 2: Revisão / Vínculo / Importação ── */}
+      {etapa === 2 && resultado && (
         <EtapaVinculo
           resultado={resultado}
-          linhas={linhas}
-          onBack={() => setEtapa(3)}
+          onBack={() => setEtapa(1)}
         />
       )}
     </div>

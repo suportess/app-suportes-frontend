@@ -81,6 +81,7 @@ export type CadastroProdutoPayload = {
   sn_validade:          string
   sn_medicamento:       string
   sn_consignado:        string
+  sn_opme?:             string
   tp_sexo:              string
   cd_especie:           number
   cd_classe:            number
@@ -88,7 +89,9 @@ export type CadastroProdutoPayload = {
   ds_sub_cla:           string
   cd_unidade:           string
   cd_tip_ativ?:         number
+  cd_sican?:            string
   cd_pro_fat?:          string
+  ds_pro_fat?:          string
   cd_pro_fat_sus?:      string
   cd_procedimento_sus?: string
   empresas:             number[]
