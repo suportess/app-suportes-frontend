@@ -73,6 +73,32 @@ export async function parsearPlanilha(formData: FormData): Promise<ParseResult> 
 
 // ─── Cadastrar produto ────────────────────────────────────────────────────────
 
+// ─── Lote de importação ─────────────────────────────────────────────────────
+
+export type ImportacaoLoteDTO = {
+  id:            number
+  nm_usuario:    string | null
+  email_usuario: string | null
+  nm_empresa:    string | null
+  dt_importacao: string
+  qt_produtos:   number
+}
+
+export async function criarLote(): Promise<ImportacaoLoteDTO> {
+  const sub = await getSub()
+  const res = await api.post<ImportacaoLoteDTO>('/produtos/importacoes/lotes', {}, { auth0Sub: sub })
+  if (!res.dados) throw new Error('Falha ao criar lote de importação.')
+  return res.dados
+}
+
+export async function listarLotes(): Promise<ImportacaoLoteDTO[]> {
+  const sub = await getSub()
+  const res = await api.get<ImportacaoLoteDTO[]>('/produtos/importacoes/lotes', { auth0Sub: sub })
+  return res.dados ?? []
+}
+
+// ─── Cadastrar produto ────────────────────────────────────────────────────────
+
 export type CadastroProdutoPayload = {
   ds_produto:           string
   ds_comercial?:        string
@@ -95,6 +121,7 @@ export type CadastroProdutoPayload = {
   cd_pro_fat_sus?:      string
   cd_procedimento_sus?: string
   empresas:             number[]
+  cd_lote?:             number
 }
 
 export type CadastroResult =

@@ -12,11 +12,12 @@ import {
   FileSpreadsheet, Upload, X, Loader2, AlertTriangle,
   ChevronRight, ChevronLeft, FileCheck2, Table2, RotateCcw,
   Tags, Check, Package, Trash2, Plus, Ruler, Search,
-  CheckCircle2, XCircle,
+  CheckCircle2, XCircle, Download, History,
 } from 'lucide-react'
 import {
   parsearPlanilha, type ParseResult,
   cadastrarProduto, type CadastroProdutoPayload, type CadastroResult,
+  criarLote, listarLotes, type ImportacaoLoteDTO,
 } from '../actions'
 import {
   listarEspecies,
@@ -929,6 +930,7 @@ function EtapaVinculo({
   const [importando,  setImportando]  = useState(false)
   const [concluido,   setConcluido]   = useState(false)
   const [resultados,  setResultados]  = useState<Record<number, CadastroResult>>({})
+  const [cdLote,      setCdLote]      = useState<number | null>(null)
 
   const nomeKey = useMemo(() => {
     const candidates = ['ds_produto', 'DS_PRODUTO', 'nome', 'NOME', 'descricao', 'DESCRICAO']
@@ -1056,6 +1058,16 @@ function EtapaVinculo({
     setImportando(true)
     const novosResultados: Record<number, CadastroResult> = {}
 
+    // Registra o cabeçalho do lote antes de importar os produtos
+    let loteId: number | undefined
+    try {
+      const lote = await criarLote()
+      loteId = lote.id
+      setCdLote(lote.id)
+    } catch {
+      // Falha ao criar lote não impede a importação
+    }
+
     for (const { row, i } of vinculadosOrdenados) {
       const linha = todasLinhas[vinculosEfetivos[i]]
 
@@ -1098,6 +1110,7 @@ function EtapaVinculo({
         cd_pro_fat_sus:      row.cd_pro_fat_sus      || undefined,
         cd_procedimento_sus: row.cd_procedimento_sus || undefined,
         empresas:            [1],
+        cd_lote:             loteId,
       }
 
       const res = await cadastrarProduto(payload)
@@ -1382,6 +1395,15 @@ function EtapaVinculo({
                 {falhas > 0 && ` · ${falhas} com erro (passe o mouse sobre o ícone ✗ para ver o detalhe)`}
               </p>
             </div>
+            {cdLote && (
+              <a
+                href={`/api/importacao/relatorio/${cdLote}`}
+                download
+                className="btn btn-primary flex items-center gap-1.5 flex-shrink-0"
+              >
+                <Download size={14} /> Baixar Relatório
+              </a>
+            )}
           </div>
         )
       })()}
@@ -1419,10 +1441,113 @@ function EtapaVinculo({
   )
 }
 
+// ─── Histórico de importações ─────────────────────────────────────────────────
+
+function HistoricoImportacoes() {
+  const [lotes,      setLotes]      = useState<ImportacaoLoteDTO[]>([])
+  const [carregando, startCarregar] = useTransition()
+
+  useEffect(() => {
+    startCarregar(async () => {
+      const lista = await listarLotes()
+      setLotes(lista)
+    })
+  }, [])
+
+  if (carregando) {
+    return (
+      <div className="card card-p flex items-center justify-center gap-2 py-12">
+        <Loader2 size={18} className="animate-spin" style={{ color: 'var(--brand)' }} />
+        <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Carregando histórico…</span>
+      </div>
+    )
+  }
+
+  if (lotes.length === 0) {
+    return (
+      <div className="card card-p flex flex-col items-center justify-center gap-2 py-12">
+        <Package size={32} style={{ color: 'var(--text-muted)' }} />
+        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Nenhuma importação registrada ainda.</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="card" style={{ overflow: 'hidden' }}>
+      <div
+        className="flex items-center gap-2 px-4 py-2.5 border-b"
+        style={{ borderColor: 'var(--border)' }}
+      >
+        <History size={13} style={{ color: 'var(--brand)' }} />
+        <span className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>
+          Importações anteriores
+        </span>
+        <span className="badge badge-brand">{lotes.length}</span>
+      </div>
+      <table className="data-table" style={{ tableLayout: 'fixed', width: '100%' }}>
+        <colgroup>
+          <col style={{ width: 64 }} />
+          <col style={{ width: '20%' }} />
+          <col style={{ width: '20%' }} />
+          <col />
+          <col style={{ width: 72 }} />
+          <col style={{ width: 128 }} />
+        </colgroup>
+        <thead>
+          <tr>
+            <th>Nº</th>
+            <th>Empresa</th>
+            <th>Usuário</th>
+            <th>Data / Hora</th>
+            <th style={{ textAlign: 'center' }}>Produtos</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {lotes.map(l => (
+            <tr key={l.id}>
+              <td>
+                <span className="badge badge-muted" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                  #{l.id}
+                </span>
+              </td>
+              <td style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {l.nm_empresa ?? '—'}
+              </td>
+              <td style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {l.nm_usuario ?? '—'}
+              </td>
+              <td>
+                <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                  {new Date(l.dt_importacao).toLocaleString('pt-BR')}
+                </span>
+              </td>
+              <td style={{ textAlign: 'center' }}>
+                <span className="badge badge-brand">{l.qt_produtos}</span>
+              </td>
+              <td>
+                <a
+                  href={`/api/importacao/relatorio/${l.id}`}
+                  download
+                  className="btn btn-secondary flex items-center gap-1 text-xs whitespace-nowrap"
+                  style={{ padding: '3px 8px' }}
+                >
+                  <Download size={12} /> Relatório
+                </a>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
 // ─── View principal ───────────────────────────────────────────────────────────
 
 export function ImportacaoProdutosView({ empresaConf }: { empresaConf: EmpresaDTO }) {
-  const [etapa, setEtapa] = useState<Etapa>(1)
+  const [etapa,    setEtapa]    = useState<Etapa>(1)
+  const [viewMode, setViewMode] = useState<'importar' | 'historico'>('importar')
 
   // Etapa 1
   const [file,       setFile]       = useState<File | null>(null)
@@ -1477,6 +1602,28 @@ export function ImportacaoProdutosView({ empresaConf }: { empresaConf: EmpresaDT
 
   return (
     <div className="flex flex-col gap-3">
+
+      {/* ── Tabs de modo ── */}
+      <div className="card card-p py-2">
+        <div className="flex gap-1.5">
+          <button
+            className={`btn text-xs flex items-center gap-1.5 ${viewMode === 'importar' ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={() => setViewMode('importar')}
+          >
+            <FileSpreadsheet size={13} /> Nova Importação
+          </button>
+          <button
+            className={`btn text-xs flex items-center gap-1.5 ${viewMode === 'historico' ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={() => setViewMode('historico')}
+          >
+            <History size={13} /> Histórico
+          </button>
+        </div>
+      </div>
+
+      {viewMode === 'historico' && <HistoricoImportacoes />}
+
+      {viewMode === 'importar' && <>
 
       {/* Indicador de etapas */}
       <div className="card card-p py-2.5">
@@ -1547,6 +1694,8 @@ export function ImportacaoProdutosView({ empresaConf }: { empresaConf: EmpresaDT
           onBack={() => setEtapa(1)}
         />
       )}
+
+      </>}
     </div>
   )
 }
