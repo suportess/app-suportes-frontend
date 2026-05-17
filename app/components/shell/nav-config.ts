@@ -57,6 +57,7 @@ import {
   ServerCog,
   Package,
   FileSpreadsheet,
+  TrendingUp,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -99,13 +100,20 @@ export const navGroups: NavGroup[] = [
       // { label: 'Entradas', href: '/dashboard/entradas', icon: PackageOpen }, // OCULTO
     ],
   },
-  // ── ESTOQUE (oculto) ────────────────────────────────────────────────────────
-  // {
-  //   title: 'Estoque',
-  //   items: [
-  //     { label: 'Saldos', href: '/dashboard/saldos', icon: Archive },
-  //   ],
-  // },
+  // ── ESTOQUE ─────────────────────────────────────────────────────────────
+  {
+    title: 'Estoque',
+    items: [
+      {
+        label: 'Saldos',
+        href:  '/dashboard/saldos',
+        icon:  Archive,
+        children: [
+          { label: 'Importação', href: '/dashboard/saldos/importacao', icon: TrendingUp },
+        ],
+      },
+    ],
+  },
   // ── CADASTROS ───────────────────────────────────────────────────────────────
   {
     title: 'Cadastros',

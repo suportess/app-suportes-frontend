@@ -125,28 +125,36 @@ function NavItemWithChildren({
 
       {open && (
         <ul className="mt-0.5 ml-4 space-y-0.5 border-l pl-3" style={{ borderColor: 'var(--d2b-border)' }}>
-          {item.children!.filter(child => !(isOperador && child.requiresAdmin)).map(child => {
-            const childActive = pathname === child.href || pathname.startsWith(child.href + '/')
-            const ChildIcon = child.icon
-            return (
-              <li key={child.href}>
-                <Link
-                  href={child.href}
-                  onClick={onClose}
-                  className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm transition-all duration-150"
-                  style={{
-                    color: childActive ? 'var(--d2b-text-primary)' : 'var(--d2b-text-secondary)',
-                    background: childActive ? 'var(--d2b-active)' : 'transparent',
-                  }}
-                  onMouseEnter={e => { if (!childActive) { (e.currentTarget as HTMLElement).style.background = 'var(--d2b-hover)'; (e.currentTarget as HTMLElement).style.color = 'var(--d2b-text-primary)' } }}
-                  onMouseLeave={e => { if (!childActive) { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = 'var(--d2b-text-secondary)' } }}
-                >
-                  <ChildIcon size={15} className={cn('flex-shrink-0', childActive ? 'text-[var(--brand)]' : 'text-current')} />
-                  <span className="truncate">{child.label}</span>
-                </Link>
-              </li>
-            )
-          })}
+          {(() => {
+            // Dentre todos os filhos que fazem match com o pathname, apenas o mais
+            // específico (href mais longo) deve ser marcado como ativo, evitando que
+            // um item pai e um item filho fiquem simultaneamente destacados.
+            const bestMatch = item.children!
+              .filter(c => pathname === c.href || pathname.startsWith(c.href + '/'))
+              .sort((a, b) => b.href.length - a.href.length)[0]?.href
+            return item.children!.filter(child => !(isOperador && child.requiresAdmin)).map(child => {
+              const childActive = bestMatch === child.href
+              const ChildIcon = child.icon
+              return (
+                <li key={child.href}>
+                  <Link
+                    href={child.href}
+                    onClick={onClose}
+                    className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm transition-all duration-150"
+                    style={{
+                      color: childActive ? 'var(--d2b-text-primary)' : 'var(--d2b-text-secondary)',
+                      background: childActive ? 'var(--d2b-active)' : 'transparent',
+                    }}
+                    onMouseEnter={e => { if (!childActive) { (e.currentTarget as HTMLElement).style.background = 'var(--d2b-hover)'; (e.currentTarget as HTMLElement).style.color = 'var(--d2b-text-primary)' } }}
+                    onMouseLeave={e => { if (!childActive) { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = 'var(--d2b-text-secondary)' } }}
+                  >
+                    <ChildIcon size={15} className={cn('flex-shrink-0', childActive ? 'text-[var(--brand)]' : 'text-current')} />
+                    <span className="truncate">{child.label}</span>
+                  </Link>
+                </li>
+              )
+            })
+          })()}
         </ul>
       )}
     </li>
