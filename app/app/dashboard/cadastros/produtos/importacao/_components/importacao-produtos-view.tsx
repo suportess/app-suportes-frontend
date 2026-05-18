@@ -10,7 +10,7 @@ import {
 } from '@tanstack/react-table'
 import {
   FileSpreadsheet, Upload, X, Loader2, AlertTriangle,
-  ChevronRight, ChevronLeft, FileCheck2, Table2, RotateCcw,
+  ChevronRight, ChevronLeft, ChevronDown, FileCheck2, Table2, RotateCcw,
   Tags, Check, Package, Trash2, Plus, Ruler, Search,
   CheckCircle2, XCircle, Download, History,
 } from 'lucide-react'
@@ -1109,6 +1109,7 @@ function EtapaVinculo({
         ds_pro_fat:          row.ds_pro_fat ? row.ds_pro_fat.slice(0, 60) : undefined,
         cd_pro_fat_sus:      row.cd_pro_fat_sus      || undefined,
         cd_procedimento_sus: row.cd_procedimento_sus || undefined,
+        valor_inicial_produto: row.valor_inicial_produto ? Number(row.valor_inicial_produto.replace(',', '.')) || undefined : undefined,
         empresas:            [1],
         cd_lote:             loteId,
       }
@@ -1555,8 +1556,20 @@ export function ImportacaoProdutosView({ empresaConf }: { empresaConf: EmpresaDT
   const [loading,    setLoading]    = useState(false)
   const [erro,       setErro]       = useState<string | null>(null)
   const [resultado,  setResultado]  = useState<Extract<ParseResult, { ok: true }> | null>(null)
+  const [showModelMenu, setShowModelMenu] = useState(false)
 
-  const inputRef = useRef<HTMLInputElement>(null)
+  const inputRef     = useRef<HTMLInputElement>(null)
+  const modelMenuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!showModelMenu) return
+    const handle = (e: MouseEvent) => {
+      if (modelMenuRef.current && !modelMenuRef.current.contains(e.target as Node))
+        setShowModelMenu(false)
+    }
+    document.addEventListener('mousedown', handle)
+    return () => document.removeEventListener('mousedown', handle)
+  }, [showModelMenu])
 
   const validarArquivo = (f: File): boolean => {
     const ext = f.name.split('.').pop()?.toLowerCase()
@@ -1633,9 +1646,40 @@ export function ImportacaoProdutosView({ empresaConf }: { empresaConf: EmpresaDT
       {/* ── Etapa 1: Carregar arquivo (some após processar) ── */}
       {etapa === 1 && !resultado && (
         <div className="card card-p flex flex-col gap-4">
-          <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>
-            1. Selecione o arquivo
-          </p>
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>
+              1. Selecione o arquivo
+            </p>
+            <div style={{ position: 'relative' }} ref={modelMenuRef}>
+              <button
+                className="btn btn-secondary flex items-center gap-1.5 text-xs"
+                onClick={() => setShowModelMenu(v => !v)}
+              >
+                <Download size={13} /> Baixar Modelo <ChevronDown size={11} />
+              </button>
+              {showModelMenu && (
+                <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: 4, background: '#ffffff', border: '1px solid var(--border)', borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.15)', zIndex: 50, minWidth: 220, padding: '4px 0' }}>
+                  {([
+                    { tipo: 'padrao',       label: 'Modelo Padrão'            },
+                    { tipo: 'obrigatorios', label: 'Somente Campos Obrigatórios' },
+                    { tipo: 'todos',        label: 'Todos os Campos'           },
+                  ] as const).map(opt => (
+                    <a
+                      key={opt.tipo}
+                      href={`/api/produtos/modelo?tipo=${opt.tipo}`}
+                      download={`modelo_produtos_${opt.tipo}.xlsx`}
+                      onClick={() => setShowModelMenu(false)}
+                      style={{ display: 'block', padding: '8px 16px', fontSize: 13, color: 'var(--text-primary)', textDecoration: 'none', whiteSpace: 'nowrap' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = '#f3f4f6')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                    >
+                      {opt.label}
+                    </a>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
 
           <UploadZone
             file={file}

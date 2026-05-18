@@ -120,6 +120,7 @@ export type CadastroProdutoPayload = {
   ds_pro_fat?:          string
   cd_pro_fat_sus?:      string
   cd_procedimento_sus?: string
+  valor_inicial_produto?: number
   empresas:             number[]
   cd_lote?:             number
 }
