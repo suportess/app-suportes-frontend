@@ -1,15 +1,14 @@
-import { FileSpreadsheet, AlertTriangle } from 'lucide-react'
-import { getEmpresaAtiva } from './actions'
-import { ImportacaoTabs } from './_components/ImportacaoTabs'
-import { ImportacaoProdutosView } from './_components/importacao-produtos-view'
+import { Lock, AlertTriangle } from 'lucide-react'
+import { getEmpresaAtiva } from '../actions'
+import { ImportacaoTabs } from '../_components/ImportacaoTabs'
+import { BloqueioView } from './_components/bloqueio-view'
 
-export default async function ImportacaoProdutosPage() {
+export default async function BloqueioProdutosPage() {
   const empresaConf = await getEmpresaAtiva().catch(() => null)
 
   return (
     <div className="page animate-fade-up">
 
-      {/* Header */}
       <div className="page-header">
         <div>
           <h1 className="page-title">
@@ -17,18 +16,18 @@ export default async function ImportacaoProdutosPage() {
               className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
               style={{ background: 'var(--purple-muted)' }}
             >
-              <FileSpreadsheet size={17} style={{ color: 'var(--purple)' }} />
+              <Lock size={17} style={{ color: 'var(--purple)' }} />
             </div>
-            Importação de Produtos
+            Bloqueio de Produtos
           </h1>
-          <p className="page-subtitle">Cadastre múltiplos produtos no MV a partir de uma planilha Excel</p>
+          <p className="page-subtitle">Bloqueie ou desbloqueie produtos no MV a partir de uma planilha Excel</p>
         </div>
       </div>
 
       <ImportacaoTabs />
 
       {!empresaConf && (
-        <div className="alert alert-warning">
+        <div className="alert alert-warning" style={{ marginTop: '0.75rem' }}>
           <AlertTriangle size={15} />
           <span>
             Nenhuma empresa com <strong>Host Portal</strong> configurado. Acesse{' '}
@@ -44,7 +43,7 @@ export default async function ImportacaoProdutosPage() {
         </div>
       )}
 
-      {empresaConf && <ImportacaoProdutosView empresaConf={empresaConf} />}
+      {empresaConf && <BloqueioView />}
 
     </div>
   )

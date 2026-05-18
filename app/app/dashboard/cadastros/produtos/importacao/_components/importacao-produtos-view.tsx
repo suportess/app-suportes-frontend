@@ -17,6 +17,7 @@ import {
 import {
   parsearPlanilha, type ParseResult,
   cadastrarProduto, type CadastroProdutoPayload, type CadastroResult,
+  bloquearProduto,
   criarLote, listarLotes, type ImportacaoLoteDTO,
 } from '../actions'
 import {
@@ -1071,6 +1072,22 @@ function EtapaVinculo({
     for (const { row, i } of vinculadosOrdenados) {
       const linha = todasLinhas[vinculosEfetivos[i]]
 
+      // ── Fluxo BLOQUEIO / DESBLOQUEIO ───────────────────────────────────────
+      const acaoRaw = (row.acao ?? row.ACAO ?? '').toString().trim().toUpperCase()
+      if (acaoRaw === 'BLOQUEIO' || acaoRaw === 'DESBLOQUEIO') {
+        const cdProduto = row.cd_produto ? Number(row.cd_produto) : NaN
+        if (!cdProduto || isNaN(cdProduto)) {
+          novosResultados[i] = { ok: false, erro: `${acaoRaw} requer a coluna cd_produto preenchida com o código MV do produto.` }
+          setResultados({ ...novosResultados })
+          continue
+        }
+        const res = await bloquearProduto(cdProduto, acaoRaw as 'BLOQUEIO' | 'DESBLOQUEIO')
+        novosResultados[i] = res
+        setResultados({ ...novosResultados })
+        continue
+      }
+
+      // ── Fluxo normal: cadastro de produto ───────────────────────────────────
       if (linha.cdEspecie === undefined || linha.cdClasse === undefined || linha.cdSubCla === undefined) {
         novosResultados[i] = { ok: false, erro: 'Classificação sem códigos resolvidos no MV.' }
         setResultados({ ...novosResultados })
@@ -1663,6 +1680,7 @@ export function ImportacaoProdutosView({ empresaConf }: { empresaConf: EmpresaDT
                     { tipo: 'padrao',       label: 'Modelo Padrão'            },
                     { tipo: 'obrigatorios', label: 'Somente Campos Obrigatórios' },
                     { tipo: 'todos',        label: 'Todos os Campos'           },
+                    { tipo: 'bloqueio',     label: 'Bloqueio / Desbloqueio'    },
                   ] as const).map(opt => (
                     <a
                       key={opt.tipo}

@@ -145,3 +145,19 @@ export async function cadastrarProduto(payload: CadastroProdutoPayload): Promise
     return { ok: false, erro: e instanceof Error ? e.message : 'Erro ao cadastrar produto.' }
   }
 }
+
+// ─── Bloquear / Desbloquear produto ──────────────────────────────────────────
+
+export type BloquearResult =
+  | { ok: true;  acao: string; cdProduto: number }
+  | { ok: false; erro: string }
+
+export async function bloquearProduto(cdProduto: number, acao: 'BLOQUEIO' | 'DESBLOQUEIO'): Promise<BloquearResult> {
+  try {
+    const sub = await getSub()
+    await api.post('/produtos/bloqueio', { cd_produto: cdProduto, acao }, { auth0Sub: sub })
+    return { ok: true, acao, cdProduto }
+  } catch (e) {
+    return { ok: false, erro: e instanceof Error ? e.message : `Erro ao executar ${acao}.` }
+  }
+}
