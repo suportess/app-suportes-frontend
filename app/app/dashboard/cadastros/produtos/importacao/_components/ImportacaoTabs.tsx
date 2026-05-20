@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { FileSpreadsheet, Lock } from 'lucide-react'
+import { FileSpreadsheet, Lock, Link2 } from 'lucide-react'
 
 const TABS = [
   {
@@ -14,6 +14,11 @@ const TABS = [
     href:  '/dashboard/cadastros/produtos/importacao/bloqueio',
     label: 'Bloqueio',
     icon:  Lock,
+  },
+  {
+    href:  '/dashboard/cadastros/produtos/importacao/vinculo',
+    label: 'Vínculo',
+    icon:  Link2,
   },
 ]
 

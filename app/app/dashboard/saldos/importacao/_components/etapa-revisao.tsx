@@ -927,45 +927,92 @@ export function EtapaRevisao({
                 )}
 
                 {/* Registros Oracle - TRANSFERÊNCIA */}
-                {result.ok && result.oracleRaw && (
-                  <div>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Registros Oracle — Transferência</div>
-                    {/* fase1_devolucoes */}
-                    {Array.isArray(result.oracleRaw.fase1_devolucoes) && (result.oracleRaw.fase1_devolucoes as Record<string, unknown>[]).length > 0 && (
-                      <div style={{ marginBottom: 10 }}>
-                        <div style={{ fontSize: 10, fontWeight: 600, color: '#7c3aed', marginBottom: 4 }}>Fase 1 — Devoluções</div>
-                        {(result.oracleRaw.fase1_devolucoes as Record<string, unknown>[]).map((dev, di) => (
-                          <div key={di} style={{ border: '1px solid #ede9fe', borderRadius: 6, marginBottom: 6, background: '#f5f3ff', padding: '8px 12px', fontSize: 11, display: 'flex', gap: 14, flexWrap: 'wrap' }}>
-                            {([['DEV_FOR', dev.cd_devolucao], ['Produto', dev.cd_produto], ['ENT_PRO', dev.cd_ent_pro], ['Fornecedor', dev.cd_fornecedor], ['Qt.', dev.qt_devolvida]] as [string, unknown][])
-                              .map(([k, v]) => (
-                                <span key={String(k)} style={{ color: '#374151' }}>
-                                  <span style={{ color: '#7c3aed' }}>{k}: </span>
-                                  <strong>{String(v)}</strong>
-                                </span>
-                              ))}
+                {result.ok && result.oracleRaw && (() => {
+                  const f1 = Array.isArray(result.oracleRaw.fase1_devolucoes) ? result.oracleRaw.fase1_devolucoes as Record<string, unknown>[] : []
+                  const f2 = Array.isArray(result.oracleRaw.fase2_entradas)   ? result.oracleRaw.fase2_entradas   as Record<string, unknown>[] : []
+                  const sv = Array.isArray(result.oracleRaw.sus_vinculos)      ? result.oracleRaw.sus_vinculos      as Record<string, unknown>[] : []
+                  const totalDev = f1.reduce((s, d) => s + Number(d.qt_devolvida ?? 0), 0)
+                  const totalEnt = f2.reduce((s, e) => s + Number(e.qt_entrada   ?? 0), 0)
+                  return (
+                    <div>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Registros Oracle — Transferência</div>
+
+                      {/* totais */}
+                      {(f1.length > 0 || f2.length > 0) && (
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
+                          <div style={{ background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: 8, padding: '8px 12px' }}>
+                            <div style={{ color: '#7c3aed', fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 2 }}>Total devolvido</div>
+                            <div style={{ fontWeight: 700, color: '#4c1d95', fontSize: 16 }}>{totalDev}</div>
+                            <div style={{ color: '#a78bfa', fontSize: 10 }}>{f1.length} devolu&ccedil;&atilde;o(&otilde;es)</div>
                           </div>
-                        ))}
-                      </div>
-                    )}
-                    {/* fase2_entradas */}
-                    {Array.isArray(result.oracleRaw.fase2_entradas) && (result.oracleRaw.fase2_entradas as Record<string, unknown>[]).length > 0 && (
-                      <div>
-                        <div style={{ fontSize: 10, fontWeight: 600, color: '#059669', marginBottom: 4 }}>Fase 2 — Entradas</div>
-                        {(result.oracleRaw.fase2_entradas as Record<string, unknown>[]).map((ent, ei) => (
-                          <div key={ei} style={{ border: '1px solid #bbf7d0', borderRadius: 6, marginBottom: 6, background: '#f0fdf4', padding: '8px 12px', fontSize: 11, display: 'flex', gap: 14, flexWrap: 'wrap' }}>
-                            {([['ENT_PRO', ent.cd_ent_pro], ['Produto', ent.cd_produto], ['ITENT_PRO', ent.cd_itent_pro], ['Qt.', ent.qt_entrada], ['Vl.unit', ent.vl_unitario]] as [string, unknown][])
-                              .map(([k, v]) => (
-                                <span key={String(k)} style={{ color: '#374151' }}>
-                                  <span style={{ color: '#6b7280' }}>{k}: </span>
-                                  <strong>{String(v)}</strong>
-                                </span>
-                              ))}
+                          <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '8px 12px' }}>
+                            <div style={{ color: '#059669', fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 2 }}>Total entrada</div>
+                            <div style={{ fontWeight: 700, color: '#065f46', fontSize: 16 }}>{totalEnt}</div>
+                            <div style={{ color: '#6ee7b7', fontSize: 10 }}>{f2.length} produto(s)</div>
                           </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
+                        </div>
+                      )}
+
+                      {/* vínculos SUS */}
+                      {sv.length > 0 && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginBottom: 12 }}>
+                          {sv.map((v, vi) => (
+                            <div key={vi} style={{ border: '1px solid #bae6fd', borderRadius: 8, background: '#f0f9ff', padding: '7px 12px', fontSize: 11, display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+                              <span style={{ color: '#374151' }}>
+                                <span style={{ color: '#9ca3af' }}>Produto: </span>
+                                <strong>{String(v.cd_produto ?? '—')}</strong>
+                              </span>
+                              <span style={{ color: '#cbd5e1' }}>→</span>
+                              <span style={{ color: '#374151' }}>
+                                <span style={{ color: '#9ca3af' }}>Filho: </span>
+                                <strong>{String(v.cd_produto_filho ?? '—')}</strong>
+                              </span>
+                              <span style={{ marginLeft: 'auto', background: '#0369a1', color: '#fff', padding: '2px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700 }}>
+                                {String(v.cd_procedimento_sus ?? '—')}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* fase1_devolucoes */}
+                      {f1.length > 0 && (
+                        <div style={{ marginBottom: 10 }}>
+                          <div style={{ fontSize: 10, fontWeight: 600, color: '#7c3aed', marginBottom: 4 }}>Fase 1 — Devoluções</div>
+                          {f1.map((dev, di) => (
+                            <div key={di} style={{ border: '1px solid #ede9fe', borderRadius: 6, marginBottom: 6, background: '#f5f3ff', padding: '8px 12px', fontSize: 11, display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+                              {([['DEV_FOR', dev.cd_devolucao], ['Produto', dev.cd_produto], ['ENT_PRO', dev.cd_ent_pro], ['Fornecedor', dev.cd_fornecedor], ['Qt.', dev.qt_devolvida]] as [string, unknown][])
+                                .map(([k, v]) => (
+                                  <span key={String(k)} style={{ color: '#374151' }}>
+                                    <span style={{ color: '#7c3aed' }}>{k}: </span>
+                                    <strong>{String(v)}</strong>
+                                  </span>
+                                ))}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* fase2_entradas */}
+                      {f2.length > 0 && (
+                        <div>
+                          <div style={{ fontSize: 10, fontWeight: 600, color: '#059669', marginBottom: 4 }}>Fase 2 — Entradas</div>
+                          {f2.map((ent, ei) => (
+                            <div key={ei} style={{ border: '1px solid #bbf7d0', borderRadius: 6, marginBottom: 6, background: '#f0fdf4', padding: '8px 12px', fontSize: 11, display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+                              {([['ENT_PRO', ent.cd_ent_pro], ['Produto', ent.cd_produto], ['ITENT_PRO', ent.cd_itent_pro], ['Qt.', ent.qt_entrada], ['Vl.unit', ent.vl_unitario]] as [string, unknown][])
+                                .map(([k, v]) => (
+                                  <span key={String(k)} style={{ color: '#374151' }}>
+                                    <span style={{ color: '#6b7280' }}>{k}: </span>
+                                    <strong>{String(v)}</strong>
+                                  </span>
+                                ))}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })()}
 
                 {/* JSON bruto colapsável */}
                 <details style={{ fontSize: 11 }}>

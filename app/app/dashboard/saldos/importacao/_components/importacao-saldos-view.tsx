@@ -510,8 +510,11 @@ function SessaoDetalheView({
         const isTransf  = item.tp_movimento === 'TRANSFERENCIA'
         const devolucoes = !isTransf && oracle && Array.isArray(oracle.devolucoes) ? oracle.devolucoes as Record<string, unknown>[] : []
         const entrada    = !isTransf && oracle && !Array.isArray(oracle.devolucoes) && oracle.cd_ent_pro != null ? oracle : null
-        const fase1Devs  = isTransf && oracle && Array.isArray(oracle.fase1_devolucoes) ? oracle.fase1_devolucoes as Record<string, unknown>[] : []
-        const fase2Ents  = isTransf && oracle && Array.isArray(oracle.fase2_entradas)   ? oracle.fase2_entradas   as Record<string, unknown>[] : []
+        const fase1Devs    = isTransf && oracle && Array.isArray(oracle.fase1_devolucoes) ? oracle.fase1_devolucoes as Record<string, unknown>[] : []
+        const fase2Ents    = isTransf && oracle && Array.isArray(oracle.fase2_entradas)   ? oracle.fase2_entradas   as Record<string, unknown>[] : []
+        const susVinculos  = isTransf && oracle && Array.isArray(oracle.sus_vinculos)     ? oracle.sus_vinculos     as Record<string, unknown>[] : []
+        const qtTotalDevolvida = fase1Devs.reduce((s, d) => s + Number(d.qt_devolvida ?? 0), 0)
+        const qtTotalEntrada   = fase2Ents.reduce((s, e) => s + Number(e.qt_entrada   ?? 0), 0)
 
         return (
           <div onClick={() => setModalItem(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
@@ -550,18 +553,37 @@ function SessaoDetalheView({
                 )}
 
                 {st !== 'erro' && st !== 'ignorado' && (
-                  <div style={{ display: 'flex', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, overflow: 'hidden', fontSize: 12 }}>
-                    {([
-                      [isEnt ? 'Qt. entrada' : 'Qt. devolvida', item.qt_total_devolvida != null ? String(item.qt_total_devolvida) : '—'],
-                      item.qt_nao_atendida ? ['Qt. nao atendida', String(item.qt_nao_atendida)] : null,
-                      ['Executado em', item.dt_execucao ? new Date(item.dt_execucao).toLocaleString('pt-BR') : '—'],
-                    ] as ([string, string] | null)[]).filter(Boolean).map(([k, v], i, arr) => (
-                      <div key={k} style={{ flex: 1, padding: '10px 14px', borderRight: i < arr.length - 1 ? '1px solid #bbf7d0' : 'none' }}>
-                        <div style={{ color: '#166534', fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 3 }}>{k}</div>
-                        <div style={{ fontWeight: 700, color: '#14532d', fontSize: 14 }}>{v}</div>
+                  isTransf2 ? (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+                      <div style={{ background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: 8, padding: '10px 14px' }}>
+                        <div style={{ color: '#7c3aed', fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 3 }}>Total devolvido</div>
+                        <div style={{ fontWeight: 700, color: '#4c1d95', fontSize: 18 }}>{qtTotalDevolvida}</div>
+                        <div style={{ color: '#a78bfa', fontSize: 10 }}>{fase1Devs.length} devolução(ões)</div>
                       </div>
-                    ))}
-                  </div>
+                      <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '10px 14px' }}>
+                        <div style={{ color: '#059669', fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 3 }}>Total entrada</div>
+                        <div style={{ fontWeight: 700, color: '#065f46', fontSize: 18 }}>{qtTotalEntrada}</div>
+                        <div style={{ color: '#6ee7b7', fontSize: 10 }}>{fase2Ents.length} produto(s)</div>
+                      </div>
+                      <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '10px 14px' }}>
+                        <div style={{ color: '#166534', fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 3 }}>Executado em</div>
+                        <div style={{ fontWeight: 700, color: '#14532d', fontSize: 13 }}>{item.dt_execucao ? new Date(item.dt_execucao).toLocaleString('pt-BR') : '—'}</div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, overflow: 'hidden', fontSize: 12 }}>
+                      {([
+                        [isEnt ? 'Qt. entrada' : 'Qt. devolvida', item.qt_total_devolvida != null ? String(item.qt_total_devolvida) : '—'],
+                        item.qt_nao_atendida ? ['Qt. nao atendida', String(item.qt_nao_atendida)] : null,
+                        ['Executado em', item.dt_execucao ? new Date(item.dt_execucao).toLocaleString('pt-BR') : '—'],
+                      ] as ([string, string] | null)[]).filter(Boolean).map(([k, v], i, arr) => (
+                        <div key={k} style={{ flex: 1, padding: '10px 14px', borderRight: i < arr.length - 1 ? '1px solid #bbf7d0' : 'none' }}>
+                          <div style={{ color: '#166534', fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 3 }}>{k}</div>
+                          <div style={{ fontWeight: 700, color: '#14532d', fontSize: 14 }}>{v}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )
                 )}
 
                 {devolucoes.length > 0 && (
@@ -570,7 +592,7 @@ function SessaoDetalheView({
                     {devolucoes.map((dev, di) => (
                       <div key={di} style={{ border: '1px solid #e5e7eb', borderRadius: 8, marginBottom: 8, overflow: 'hidden' }}>
                         <div style={{ background: '#f3f4f6', padding: '8px 12px', fontSize: 11, display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-                          {(['DEV_FOR', 'cd_devolucao'], ['ENT_PRO', 'cd_ent_pro'], ['Forn.', 'cd_fornecedor'], ['Qt.', 'qt_devolvida'], ['Vl.', 'vl_total'] as unknown as [string, string][])
+                          {[['DEV_FOR', 'cd_devolucao'], ['ENT_PRO', 'cd_ent_pro'], ['Forn.', 'cd_fornecedor'], ['Qt.', 'qt_devolvida'], ['Vl.', 'vl_total']]
                             .map(([k, fk]) => (
                               <span key={k} style={{ color: '#374151' }}>
                                 <span style={{ color: '#9ca3af' }}>{k}: </span>
@@ -618,10 +640,32 @@ function SessaoDetalheView({
                   </div>
                 )}
 
+                {/* Vínculos SUS */}
+                {isTransf2 && susVinculos.length > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {susVinculos.map((v, vi) => (
+                      <div key={vi} style={{ border: '1px solid #bae6fd', borderRadius: 8, background: '#f0f9ff', padding: '8px 14px', fontSize: 11, display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+                        <span style={{ color: '#374151' }}>
+                          <span style={{ color: '#9ca3af' }}>Produto: </span>
+                          <strong>{String(v.cd_produto ?? '—')}</strong>
+                        </span>
+                        <span style={{ color: '#cbd5e1' }}>→</span>
+                        <span style={{ color: '#374151' }}>
+                          <span style={{ color: '#9ca3af' }}>Filho: </span>
+                          <strong>{String(v.cd_produto_filho ?? '—')}</strong>
+                        </span>
+                        <span style={{ marginLeft: 'auto', background: '#0369a1', color: '#fff', padding: '2px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700 }}>
+                          {String(v.cd_procedimento_sus ?? '—')}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 {/* ── TRANSFERENCIA: fase1 devolucoes + fase2 entradas ── */}
                 {isTransf2 && fase1Devs.length > 0 && (
                   <div>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: '#7c3aed', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Fase 1 \u2013 Devolucoes Oracle</div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: '#7c3aed', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Fase 1 — Devoluções</div>
                     {fase1Devs.map((dev, di) => (
                       <div key={di} style={{ border: '1px solid #e5e7eb', borderRadius: 8, marginBottom: 8, overflow: 'hidden' }}>
                         <div style={{ background: '#f5f3ff', padding: '8px 12px', fontSize: 11, display: 'flex', gap: 16, flexWrap: 'wrap' }}>
@@ -654,7 +698,7 @@ function SessaoDetalheView({
 
                 {isTransf2 && fase2Ents.length > 0 && (
                   <div>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: '#7c3aed', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Fase 2 \u2013 Entradas Oracle</div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: '#7c3aed', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Fase 2 — Entradas</div>
                     {fase2Ents.map((ent, ei) => (
                       <div key={ei} style={{ border: '1px solid #ddd6fe', borderRadius: 8, marginBottom: 8, background: '#faf5ff', padding: '10px 14px', fontSize: 12, display: 'flex', gap: 16, flexWrap: 'wrap' }}>
                         {[['ENT_PRO', 'cd_ent_pro'], ['ITENT_PRO', 'cd_itent_pro'], ['Produto', 'cd_produto'], ['Qt.', 'qt_entrada'], ['SN_LOTE', 'sn_lote']].map(([k, fk]) =>
