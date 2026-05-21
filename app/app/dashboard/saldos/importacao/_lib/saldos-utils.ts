@@ -72,6 +72,10 @@ export type SaldoRow = {
   saldo:       string
   /** Obrigatório — valor canônico após resolução */
   movimento:   TipoMovimento | undefined
+  /** Código do lote (opcional — obrigatório se produto controla lote) */
+  lote?:       string
+  /** Data de validade no formato DD/MM/YYYY (opcional) */
+  validade?:   string
 }
 
 /**
@@ -98,7 +102,17 @@ export function normalizarLinha(row: Record<string, string>, headers: string[]):
     unidade:    find('unidade', 'und', 'unit'),
     saldo:      find('saldo', 'qtd', 'quantidade', 'qty') ?? '',
     movimento:  resolverMovimento(movRaw),
+    lote:       find('lote', 'lot', 'batch'),
+    validade:   find('validade', 'val', 'expiry', 'vencimento'),
   }
+}
+
+/**
+ * True se a linha é uma "linha de detalhe de lote":
+ * tem lote/validade mas nenhum produto — herda o produto da linha-pai anterior.
+ */
+export function isLoteDetalhe(s: SaldoRow): boolean {
+  return !s.produto && !!s.lote
 }
 
 // ─── Agrupamento de TRANSFERÊNCIA ────────────────────────────────────────────

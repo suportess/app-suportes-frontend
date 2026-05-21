@@ -260,6 +260,8 @@ export type TransferenciaGrupoPayload = {
     cdEstoque:    number
     cdFornecedor: number
     cdUnidade:    string
+    cdLote?:       string | null
+    dtValidade?:   string | null
     // metadata por filho
     nrLinha?:      number
     dsProduto?:    string | null

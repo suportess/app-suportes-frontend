@@ -9,7 +9,7 @@ import {
 } from '../actions'
 import {
   normalizarLinha, validarLinha, calcTransfGroups, getTransfItems,
-  MOVIMENTOS_VALIDOS, MOV_LABEL, MOV_BADGE_CLASS,
+  MOVIMENTOS_VALIDOS, MOV_LABEL, MOV_BADGE_CLASS, isLoteDetalhe,
   type TipoMovimento, type LinhaProcessada,
 } from '../_lib/saldos-utils'
 
@@ -351,24 +351,77 @@ export function EtapaRevisao({
             dsUnidade:    cabInfo?.DS_UNIDADE ?? null,
           }
         }),
-        itens: groupItems.map(l => {
-          const itemInfo = getSaldo(l)
-          const cdEst  = l.saldoRow.estoque  ?? firstCab?.saldoRow.estoque  ?? ''
-          const cdForn = l.saldoRow.fornecedor ?? firstCab?.saldoRow.fornecedor ?? ''
-          const cdUni  = l.saldoRow.unidade ?? itemInfo?.CD_UNIDADE ?? ''
-          return {
-            cdProduto:    Number(l.saldoRow.produto!),
-            qtEntrada:    Number(l.saldoRow.saldo.replace(',', '.')),
-            cdEstoque:    Number(cdEst),
-            cdFornecedor: Number(cdForn),
-            cdUnidade:    cdUni,
-            nrLinha:      l.idx,
-            dsProduto:    itemInfo?.DS_PRODUTO ?? null,
-            dsEstoque:    itemInfo?.DS_ESTOQUE ?? null,
-            nmFornecedor: itemInfo?.NM_FORNECEDOR ?? null,
-            dsUnidade:    itemInfo?.DS_UNIDADE ?? null,
+        itens: (() => {
+          // Expande sub-rows de lote: linhas sem produto mas com lote herdam
+          // produto/estoque/fornecedor/unidade da linha-pai anterior.
+          // A linha-pai que possui sub-rows é omitida (a qtd real fica nas sub-rows).
+          type ExpandedItem = {
+            l: LinhaProcessada
+            effProduto: string
+            effEstoque: string
+            effFornecedor: string
+            effUnidade?: string
           }
-        }),
+
+          // 1ª passagem: detectar quais linhas-pai têm sub-rows de lote
+          const paisComSubRows = new Set<number>()
+          let lastPaiIdx: number | null = null
+          for (const l of groupItems) {
+            if (isLoteDetalhe(l.saldoRow)) {
+              if (lastPaiIdx !== null) paisComSubRows.add(lastPaiIdx)
+            } else {
+              lastPaiIdx = l.idx
+            }
+          }
+
+          // 2ª passagem: expandir
+          const expanded: ExpandedItem[] = []
+          let lastPai: LinhaProcessada | null = null
+          for (const l of groupItems) {
+            if (isLoteDetalhe(l.saldoRow)) {
+              if (!lastPai) continue // sub-row sem pai → ignora
+              expanded.push({
+                l,
+                effProduto:    lastPai.saldoRow.produto    ?? '',
+                effEstoque:    l.saldoRow.estoque  ?? lastPai.saldoRow.estoque  ?? firstCab?.saldoRow.estoque  ?? '',
+                effFornecedor: l.saldoRow.fornecedor ?? lastPai.saldoRow.fornecedor ?? firstCab?.saldoRow.fornecedor ?? '',
+                effUnidade:    l.saldoRow.unidade ?? lastPai.saldoRow.unidade,
+              })
+            } else {
+              if (!paisComSubRows.has(l.idx)) {
+                // Linha normal sem sub-rows — inclui diretamente
+                expanded.push({
+                  l,
+                  effProduto:    l.saldoRow.produto    ?? '',
+                  effEstoque:    l.saldoRow.estoque    ?? firstCab?.saldoRow.estoque  ?? '',
+                  effFornecedor: l.saldoRow.fornecedor ?? firstCab?.saldoRow.fornecedor ?? '',
+                  effUnidade:    l.saldoRow.unidade,
+                })
+              }
+              lastPai = l
+            }
+          }
+
+          return expanded.map(({ l, effProduto, effEstoque, effFornecedor, effUnidade }) => {
+            const itemInfo = saldoMap.get(`${effProduto}-${effEstoque}-${effFornecedor}`)
+                          ?? saldoMap.get(effProduto)
+            const cdUni  = effUnidade ?? itemInfo?.CD_UNIDADE ?? ''
+            return {
+              cdProduto:    Number(effProduto),
+              qtEntrada:    Number(l.saldoRow.saldo.replace(',', '.')),
+              cdEstoque:    Number(effEstoque),
+              cdFornecedor: Number(effFornecedor),
+              cdUnidade:    cdUni,
+              cdLote:       l.saldoRow.lote     ?? null,
+              dtValidade:   l.saldoRow.validade ?? null,
+              nrLinha:      l.idx,
+              dsProduto:    itemInfo?.DS_PRODUTO ?? null,
+              dsEstoque:    itemInfo?.DS_ESTOQUE ?? null,
+              nmFornecedor: itemInfo?.NM_FORNECEDOR ?? null,
+              dsUnidade:    itemInfo?.DS_UNIDADE ?? null,
+            }
+          })
+        })(),
       }
 
       const res = await transferirGrupo(payload)
@@ -532,8 +585,9 @@ export function EtapaRevisao({
 
                     // ── Transferência ─────────────────────────────────────
                     const groupIdx     = transfGroups.get(l.idx)
-                    const isTransfHead = l.saldoRow.movimento === 'TRANSFERENCIA'
-                    const isTransfItem = transfItems.has(l.idx)
+                    const isTransfHead    = l.saldoRow.movimento === 'TRANSFERENCIA'
+                    const isTransfItem    = transfItems.has(l.idx)
+                    const isLoteDetalheRow = isTransfItem && isLoteDetalhe(l.saldoRow)
                     const isInTransf   = isTransfHead || isTransfItem
                     const groupMembers = groupIdx != null
                       ? visiveis.filter(x => transfGroups.get(x.idx) === groupIdx)
@@ -653,22 +707,37 @@ export function EtapaRevisao({
                                       : (info?.DS_PRODUTO ?? l.saldoRow.produto)
                                   }
                                 </>
-                              : isTransfItem
-                                ? <span style={{ color: '#7c3aed', fontSize: 10, fontWeight: 700, letterSpacing: '0.04em' }}>ITEM TRANSF.</span>
-                                : <span style={{ color: 'var(--text-muted)' }}>—</span>
+                              : isLoteDetalheRow
+                                ? <div style={{ lineHeight: 1.5 }}>
+                                    {l.saldoRow.lote && (
+                                      <div style={{ fontSize: 11, color: '#7c3aed', fontWeight: 600 }}>
+                                        <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>Lote: </span>{l.saldoRow.lote}
+                                      </div>
+                                    )}
+                                    {l.saldoRow.validade && (
+                                      <div style={{ fontSize: 11, color: '#7c3aed', fontWeight: 600 }}>
+                                        <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>Validade: </span>{l.saldoRow.validade}
+                                      </div>
+                                    )}
+                                  </div>
+                                : isTransfItem
+                                  ? <span style={{ color: '#7c3aed', fontSize: 10, fontWeight: 700, letterSpacing: '0.04em' }}>ITEM TRANSF.</span>
+                                  : <span style={{ color: 'var(--text-muted)' }}>—</span>
                             }
                           </div>
                         </td>
 
                         {/* Estoque */}
                         <td style={{ paddingTop: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 0 }}>
-                          {effMov(l) === 'ENTRADA' && (!l.saldoRow.estoque || l.saldoRow.estoque.trim() === '')
-                            ? <span title="Estoque obrigatório para ENTRADA" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 18, height: 18, borderRadius: '50%', background: '#dc2626', color: '#fff', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>E</span>
-                            : codEstoque || dsEstoque
-                              ? <span title={labelEst} style={{ color: isTransfItem && !l.saldoRow.estoque ? '#7c3aed' : 'var(--text-secondary)', fontStyle: isTransfItem && !l.saldoRow.estoque ? 'italic' : undefined }}>{labelEst}</span>
-                              : isTransfItem
-                                ? <span style={{ color: '#7c3aed', fontSize: 10, fontWeight: 700, letterSpacing: '0.04em' }}>ITEM TRANSF.</span>
-                                : <span style={{ color: 'var(--text-muted)' }}>—</span>}
+                          {isLoteDetalheRow
+                            ? <span style={{ color: 'var(--text-muted)' }}>—</span>
+                            : effMov(l) === 'ENTRADA' && (!l.saldoRow.estoque || l.saldoRow.estoque.trim() === '')
+                              ? <span title="Estoque obrigatório para ENTRADA" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 18, height: 18, borderRadius: '50%', background: '#dc2626', color: '#fff', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>E</span>
+                              : codEstoque || dsEstoque
+                                ? <span title={labelEst} style={{ color: isTransfItem && !l.saldoRow.estoque ? '#7c3aed' : 'var(--text-secondary)', fontStyle: isTransfItem && !l.saldoRow.estoque ? 'italic' : undefined }}>{labelEst}</span>
+                                : isTransfItem
+                                  ? <span style={{ color: '#7c3aed', fontSize: 10, fontWeight: 700, letterSpacing: '0.04em' }}>ITEM TRANSF.</span>
+                                  : <span style={{ color: 'var(--text-muted)' }}>—</span>}
                         </td>
 
                         {/* Fornecedor */}
@@ -677,16 +746,20 @@ export function EtapaRevisao({
                             ? <span title="Fornecedor obrigatório para ENTRADA" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 18, height: 18, borderRadius: '50%', background: '#dc2626', color: '#fff', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>E</span>
                             : codForn || nmForn
                               ? <span title={labelForn} style={{ color: isTransfItem && !l.saldoRow.fornecedor ? '#7c3aed' : 'var(--text-secondary)', fontStyle: isTransfItem && !l.saldoRow.fornecedor ? 'italic' : undefined }}>{labelForn}</span>
-                              : isTransfItem
-                                ? <span style={{ color: '#7c3aed', fontSize: 10, fontWeight: 700, letterSpacing: '0.04em' }}>ITEM TRANSF.</span>
-                                : <span style={{ color: 'var(--text-muted)' }}>—</span>}
+                              : isLoteDetalheRow
+                                ? <span style={{ color: 'var(--text-muted)' }}>—</span>
+                                : isTransfItem
+                                  ? <span style={{ color: '#7c3aed', fontSize: 10, fontWeight: 700, letterSpacing: '0.04em' }}>ITEM TRANSF.</span>
+                                  : <span style={{ color: 'var(--text-muted)' }}>—</span>}
                         </td>
 
                         {/* Unidade */}
                         <td style={{ paddingTop: 8, color: 'var(--text-secondary)' }}>
-                          {effMov(l) === 'ENTRADA' && (!l.saldoRow.unidade || l.saldoRow.unidade.trim() === '') && !info?.CD_UNIDADE
-                            ? <span title="Unidade obrigatória para ENTRADA" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 18, height: 18, borderRadius: '50%', background: '#dc2626', color: '#fff', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>E</span>
-                            : <span title={labelUnidade} style={{ color: isTransfItem && !l.saldoRow.unidade ? '#7c3aed' : undefined, fontStyle: isTransfItem && !l.saldoRow.unidade ? 'italic' : undefined }}>{labelUnidade}</span>}
+                          {isLoteDetalheRow
+                            ? <span style={{ color: 'var(--text-muted)' }}>—</span>
+                            : effMov(l) === 'ENTRADA' && (!l.saldoRow.unidade || l.saldoRow.unidade.trim() === '') && !info?.CD_UNIDADE
+                              ? <span title="Unidade obrigatória para ENTRADA" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 18, height: 18, borderRadius: '50%', background: '#dc2626', color: '#fff', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>E</span>
+                              : <span title={labelUnidade} style={{ color: isTransfItem && !l.saldoRow.unidade ? '#7c3aed' : undefined, fontStyle: isTransfItem && !l.saldoRow.unidade ? 'italic' : undefined }}>{labelUnidade}</span>}
                         </td>
 
                         {/* Quantidade */}
@@ -696,7 +769,9 @@ export function EtapaRevisao({
 
                         {/* Movimento */}
                         <td style={{ paddingTop: 6, textAlign: 'center' }}>
-                          {isTransfItem
+                          {isLoteDetalheRow
+                            ? <span style={{ fontSize: 10, fontWeight: 700, color: '#16a34a', letterSpacing: '0.04em', background: 'rgba(22,163,74,0.1)', padding: '2px 8px', borderRadius: 4, display: 'inline-block' }}>LOTE TRANSF.</span>
+                            : isTransfItem
                             ? <span style={{ fontSize: 10, fontWeight: 700, color: '#7c3aed', letterSpacing: '0.04em', background: 'rgba(124,58,237,0.1)', padding: '2px 8px', borderRadius: 4, display: 'inline-block' }}>ITEM TRANSF.</span>
                             : hasErro
                               ? <span style={{ color: 'var(--danger)', fontSize: 10, fontWeight: 500 }}>obrigatório</span>
