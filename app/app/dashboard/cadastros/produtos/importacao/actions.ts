@@ -6,6 +6,48 @@ import { api } from '@/lib/api'
 import type { EmpresaDTO, UsuarioDTO } from '@/lib/types'
 import * as XLSX from 'xlsx'
 
+function normalizeHeader(raw: string): string {
+  return String(raw ?? '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+}
+
+const HEADER_ALIASES: Record<string, string> = {
+  ds_produto: 'ds_produto',
+  nome: 'ds_produto',
+  descricao: 'ds_produto',
+  sn_lote: 'sn_lote',
+  sn_validade: 'sn_validade',
+  sn_medicamento: 'sn_medicamento',
+  sn_consignado: 'sn_consignado',
+  opme_nexo: 'opme_nexo',
+  cd_tip_ativ: 'cd_tip_ativ',
+  codigo_anvisa: 'codigo_anvisa',
+  cd_pro_fat: 'cd_pro_fat',
+  ds_pro_fat: 'ds_pro_fat',
+  cd_pro_fat_sus: 'cd_pro_fat_sus',
+  pro_fat_sus: 'cd_pro_fat_sus',
+  procedimento_sus: 'cd_procedimento_sus',
+  cd_procedimento_sus: 'cd_procedimento_sus',
+  cd_procediento_sus: 'cd_procedimento_sus',
+  valor_inicial_produto: 'valor_inicial_produto',
+  cd_especie: 'cd_especie',
+  cd_classe: 'cd_classe',
+  cd_sub_cla: 'cd_sub_cla',
+  cd_unidade: 'cd_unidade',
+  cd_produto: 'cd_produto',
+  acao: 'acao',
+}
+
+function toCanonicalHeader(header: string): string {
+  const normalized = normalizeHeader(header)
+  return HEADER_ALIASES[normalized] ?? normalized
+}
+
 async function getSub(): Promise<string> {
   const s = await getSession()
   if (!s) redirect('/login')
@@ -57,12 +99,18 @@ export async function parsearPlanilha(formData: FormData): Promise<ParseResult> 
     const rows: Record<string, string>[] = rawRows.map(row => {
       const plain: Record<string, string> = {}
       for (const key of Object.keys(row)) {
-        plain[key] = String(row[key] ?? '')
+        const canonicalKey = toCanonicalHeader(key)
+        const value = String(row[key] ?? '')
+
+        // Keep first non-empty value when aliases collapse into the same canonical key.
+        if (!(canonicalKey in plain) || (!plain[canonicalKey] && value)) {
+          plain[canonicalKey] = value
+        }
       }
       return plain
     })
 
-    const headers = Object.keys(rows[0])
+    const headers = Object.keys(rows[0] ?? {})
 
     return { ok: true, headers, rows, total: rows.length }
   } catch (e: unknown) {
