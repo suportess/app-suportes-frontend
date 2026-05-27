@@ -79,6 +79,54 @@ export type SaldoRow = {
 }
 
 /**
+ * Normaliza data de validade para DD/MM/YYYY.
+ * Aceita entradas comuns de planilha (DD/MM/YY, MM/DD/YY, YYYY-MM-DD, etc.).
+ */
+function normalizarValidade(raw?: string): string | undefined {
+  if (!raw) return undefined
+  const v = raw.trim()
+  if (!v) return undefined
+
+  const to4 = (y: number) => (y < 100 ? 2000 + y : y)
+  const pad2 = (n: number) => String(n).padStart(2, '0')
+  const isValid = (d: number, m: number, y: number) => {
+    if (!Number.isInteger(d) || !Number.isInteger(m) || !Number.isInteger(y)) return false
+    if (y < 1900 || y > 2100 || m < 1 || m > 12 || d < 1 || d > 31) return false
+    const dt = new Date(y, m - 1, d)
+    return dt.getFullYear() === y && dt.getMonth() === m - 1 && dt.getDate() === d
+  }
+  const fmt = (d: number, m: number, y: number) => `${pad2(d)}/${pad2(m)}/${String(y)}`
+
+  // ISO-like: YYYY-MM-DD
+  let m = v.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/)
+  if (m) {
+    const y = Number(m[1])
+    const mm = Number(m[2])
+    const d = Number(m[3])
+    if (isValid(d, mm, y)) return fmt(d, mm, y)
+  }
+
+  // Slash format: D/M/YY(YY) or M/D/YY(YY)
+  m = v.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})$/)
+  if (m) {
+    const a = Number(m[1])
+    const b = Number(m[2])
+    const y = to4(Number(m[3]))
+
+    // Se a 2a parte > 12, claramente veio como MM/DD.
+    if (b > 12 && isValid(b, a, y)) return fmt(b, a, y)
+
+    // Padrão esperado no front: DD/MM.
+    if (isValid(a, b, y)) return fmt(a, b, y)
+
+    // Fallback: tenta MM/DD quando DD/MM for inválido.
+    if (isValid(b, a, y)) return fmt(b, a, y)
+  }
+
+  return v
+}
+
+/**
  * Detecta colunas por nome flexível (ignora acentos, maiúsculas, caracteres especiais)
  * e normaliza uma linha bruta da planilha para SaldoRow.
  */
@@ -103,7 +151,7 @@ export function normalizarLinha(row: Record<string, string>, headers: string[]):
     saldo:      find('saldo', 'qtd', 'quantidade', 'qty') ?? '',
     movimento:  resolverMovimento(movRaw),
     lote:       find('lote', 'lot', 'batch'),
-    validade:   find('validade', 'val', 'expiry', 'vencimento'),
+    validade:   normalizarValidade(find('validade', 'val', 'expiry', 'vencimento')),
   }
 }
 
