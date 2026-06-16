@@ -60,6 +60,7 @@ import {
   TrendingUp,
   Table2,
   FileCode2,
+  Search,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -147,9 +148,12 @@ export const navGroups: NavGroup[] = [
     title: 'Consultas',
     items: [
       {
-        label: 'SQL',
-        href: '/dashboard/consultas/sql',
-        icon: FileCode2,
+        label: 'Consultas',
+        href: '/dashboard/consultas',
+        icon: Search,
+        children: [
+          { label: 'SQL', href: '/dashboard/consultas/sql', icon: FileCode2 },
+        ],
       },
     ],
   },
