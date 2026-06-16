@@ -352,6 +352,61 @@ export type OperacaoBaixaConsignadoOrigemDTO = {
   qtEstoqueAtual: number | null
 }
 
+// ─── RAG DBAMV ───────────────────────────────────────────────────────────────
+
+export type ColunaRagDTO = {
+  id: string
+  nome: string
+  tipoDado: string | null
+  descricao: string | null
+  nullable: boolean
+  chavePrimaria: boolean
+}
+
+export type TabelaRagDTO = {
+  id: string
+  nome: string
+  schemaOra: string
+  descricao: string | null
+  indexadoEm: string | null
+  colunas: ColunaRagDTO[]
+}
+
+export type ColunaRagRequest = {
+  nome: string
+  tipoDado?: string
+  descricao?: string
+  nullable?: boolean
+  chavePrimaria?: boolean
+}
+
+export type TabelaRagRequest = {
+  nome: string
+  schemaOra: string
+  descricao: string
+  colunas: ColunaRagRequest[]
+}
+
+export type ConsultaRagRequest = {
+  pergunta: string
+  topK?: number
+}
+
+export type ConsultaRagResponse = {
+  pergunta: string
+  sql: string
+}
+
+export type ExemploRagDTO = {
+  id: string
+  pergunta: string
+  sqlGerado: string
+  descricao: string | null
+  criadoEm: string
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export type OperacaoBaixaConsignadoDTO = {
   id: number
   empresaId: number

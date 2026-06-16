@@ -58,6 +58,7 @@ import {
   Package,
   FileSpreadsheet,
   TrendingUp,
+  Table2,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -152,7 +153,8 @@ export const navGroups: NavGroup[] = [
           { label: 'Empresa',        href: '/dashboard/configuracoes/empresa',     icon: Landmark  },
           { label: 'Instalação',     href: '/dashboard/configuracoes/instalacao',  icon: ServerCog },
           { label: 'Banco de Dados', href: '/dashboard/configuracoes/banco',       icon: Database  },
-          { label: 'Usuários',       href: '/dashboard/configuracoes/usuarios',    icon: Users, requiresAdmin: true },
+          { label: 'Usuários',       href: '/dashboard/configuracoes/usuarios',    icon: Users,   requiresAdmin: true },
+          { label: 'Tabelas RAG',   href: '/dashboard/configuracoes/tabelas',    icon: Table2,  requiresAdmin: true },
           // { label: 'Estoques',    href: '/dashboard/configuracoes/estoques',   icon: Archive   }, // OCULTO
           // { label: 'Permissões',  href: '/dashboard/configuracoes/permissoes', icon: KeyRound  }, // OCULTO
         ],
