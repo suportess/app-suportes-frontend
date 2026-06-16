@@ -209,28 +209,27 @@ export function TabelasView({ paginaInicial }: { paginaInicial: PagedResponse<Ta
 
     setErroModal(null)
     setSalvando(true)
-    try {
-      const req: TabelaRagRequest = {
-        nome: form.nome.trim().toUpperCase(),
-        schemaOra: (form.schemaOra.trim() || 'DBAMV').toUpperCase(),
-        descricao: form.descricao.trim(),
-        colunas: colunas.filter(c => c.nome.trim()).map<ColunaRagRequest>(c => ({
-          nome: c.nome.trim().toUpperCase(),
-          ...(c.tipoDado.trim() ? { tipoDado: c.tipoDado.trim() } : {}),
-          ...(c.descricao.trim() ? { descricao: c.descricao.trim() } : {}),
-          nullable: c.nullable,
-          chavePrimaria: c.chavePrimaria,
-        })),
-      }
-      await salvarTabela(req)
-      setSucesso(editando ? `Tabela ${req.nome} atualizada.` : `Tabela ${req.nome} cadastrada.`)
-      fecharModal()
-      await recarregar(pagina)
-    } catch (e) {
-      setErroModal(e instanceof Error ? e.message : 'Erro ao salvar tabela.')
-    } finally {
-      setSalvando(false)
+    const req: TabelaRagRequest = {
+      nome: form.nome.trim().toUpperCase(),
+      schemaOra: (form.schemaOra.trim() || 'DBAMV').toUpperCase(),
+      descricao: form.descricao.trim(),
+      colunas: colunas.filter(c => c.nome.trim()).map<ColunaRagRequest>(c => ({
+        nome: c.nome.trim().toUpperCase(),
+        ...(c.tipoDado.trim() ? { tipoDado: c.tipoDado.trim() } : {}),
+        ...(c.descricao.trim() ? { descricao: c.descricao.trim() } : {}),
+        nullable: c.nullable,
+        chavePrimaria: c.chavePrimaria,
+      })),
     }
+    const result = await salvarTabela(req)
+    setSalvando(false)
+    if (result.error) {
+      setErroModal(result.error)
+      return
+    }
+    setSucesso(editando ? `Tabela ${req.nome} atualizada.` : `Tabela ${req.nome} cadastrada.`)
+    fecharModal()
+    await recarregar(pagina)
   }
 
   // ── Deletar ───────────────────────────────────────────────────────────────────
@@ -238,13 +237,10 @@ export function TabelasView({ paginaInicial }: { paginaInicial: PagedResponse<Ta
   async function handleDeletar(id: string, nome: string) {
     if (!confirm(`Remover a tabela ${nome}? Essa ação não pode ser desfeita.`)) return
     limparPagina()
-    try {
-      await deletarTabela(id)
-      setSucesso(`Tabela ${nome} removida.`)
-      await recarregar(pagina)
-    } catch (e) {
-      setErro(e instanceof Error ? e.message : 'Erro ao remover tabela.')
-    }
+    const result = await deletarTabela(id)
+    if (result.error) { setErro(result.error); return }
+    setSucesso(`Tabela ${nome} removida.`)
+    await recarregar(pagina)
   }
 
   // ── Indexar ───────────────────────────────────────────────────────────────────
@@ -252,29 +248,21 @@ export function TabelasView({ paginaInicial }: { paginaInicial: PagedResponse<Ta
   async function handleIndexar(nome: string) {
     limparPagina()
     setIndexandoNome(nome)
-    try {
-      await indexarTabela(nome)
-      setSucesso(`Tabela ${nome} indexada com sucesso.`)
-      await recarregar(pagina)
-    } catch (e) {
-      setErro(e instanceof Error ? e.message : `Erro ao indexar ${nome}.`)
-    } finally {
-      setIndexandoNome(null)
-    }
+    const result = await indexarTabela(nome)
+    setIndexandoNome(null)
+    if (result.error) { setErro(result.error); return }
+    setSucesso(`Tabela ${nome} indexada com sucesso.`)
+    await recarregar(pagina)
   }
 
   async function handleIndexarTudo() {
     if (!confirm('Reindexar todas as tabelas? Pode demorar alguns minutos.')) return
     limparPagina()
     setIndexandoTudo(true)
-    try {
-      const res = await indexarTudo()
-      setSucesso(`${res.documentos_indexados.toLocaleString('pt-BR')} documentos indexados com sucesso.`)
-    } catch (e) {
-      setErro(e instanceof Error ? e.message : 'Erro ao indexar tabelas.')
-    } finally {
-      setIndexandoTudo(false)
-    }
+    const result = await indexarTudo()
+    setIndexandoTudo(false)
+    if (result.error) { setErro(result.error); return }
+    setSucesso(`${result.data!.documentos_indexados.toLocaleString('pt-BR')} documentos indexados com sucesso.`)
   }
 
   // ── Colunas ───────────────────────────────────────────────────────────────────
