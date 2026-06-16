@@ -59,6 +59,7 @@ import {
   FileSpreadsheet,
   TrendingUp,
   Table2,
+  FileCode2,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -142,6 +143,16 @@ export const navGroups: NavGroup[] = [
   //     { label: 'Relatórios', href: '/dashboard/relatorios', icon: BarChart3 },
   //   ],
   // },
+  {
+    title: 'Consultas',
+    items: [
+      {
+        label: 'SQL',
+        href: '/dashboard/consultas/sql',
+        icon: FileCode2,
+      },
+    ],
+  },
   {
     title: 'Sistema',
     items: [
