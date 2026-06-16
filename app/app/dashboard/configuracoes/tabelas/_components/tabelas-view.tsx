@@ -1,9 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   Table2, Plus, Pencil, Trash2, Zap, Loader2,
-  ChevronLeft, ChevronRight, CheckCircle2, AlertTriangle, Clock, X,
+  ChevronLeft, ChevronRight, CheckCircle2, AlertTriangle, Clock, X, Search,
 } from 'lucide-react'
 import type {
   TabelaRagDTO, TabelaRagRequest, ColunaRagRequest, PagedResponse,
@@ -126,6 +126,9 @@ export function TabelasView({ paginaInicial }: { paginaInicial: PagedResponse<Ta
   const [form, setForm] = useState<TabelaForm>(FORM_VAZIO)
   const [colunas, setColunas] = useState<ColForm[]>([])
 
+  const [busca, setBusca] = useState('')
+  const montado = useRef(false)
+
   const [carregando, setCarregando] = useState(false)
   const [salvando, setSalvando] = useState(false)
   const [indexandoTudo_, setIndexandoTudo] = useState(false)
@@ -135,14 +138,23 @@ export function TabelasView({ paginaInicial }: { paginaInicial: PagedResponse<Ta
   const [erro, setErro] = useState<string | null>(null)
   const [erroModal, setErroModal] = useState<string | null>(null)
 
+  // ── Debounce busca ─────────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (!montado.current) { montado.current = true; return }
+    const timer = setTimeout(() => recarregar(0, busca), 350)
+    return () => clearTimeout(timer)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [busca])
+
   // ── Helpers ───────────────────────────────────────────────────────────────────
 
   function limparPagina() { setSucesso(null); setErro(null) }
 
-  async function recarregar(p: number) {
+  async function recarregar(p: number, filtro = busca) {
     setCarregando(true)
     try {
-      const res = await listarTabelas(p, tamanhoPagina)
+      const res = await listarTabelas(p, tamanhoPagina, filtro)
       setTabelas(res.dados)
       setTotal(res.total)
       setPagina(p)
@@ -308,6 +320,24 @@ export function TabelasView({ paginaInicial }: { paginaInicial: PagedResponse<Ta
         </div>
       </div>
 
+      {/* Busca */}
+      <div className="input-field" style={{ maxWidth: 360 }}>
+        <Search size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+        <input
+          type="text"
+          className="bg-transparent outline-none text-sm flex-1"
+          style={{ color: 'var(--text-primary)' }}
+          placeholder="Filtrar por nome da tabela..."
+          value={busca}
+          onChange={e => setBusca(e.target.value)}
+        />
+        {busca && (
+          <button className="icon-btn" onClick={() => setBusca('')} style={{ padding: 2 }}>
+            <X size={12} />
+          </button>
+        )}
+      </div>
+
       {/* Alertas */}
       {sucesso && (
         <div className="alert alert-success">
@@ -447,14 +477,14 @@ export function TabelasView({ paginaInicial }: { paginaInicial: PagedResponse<Ta
           <div className="flex items-center gap-1">
             <button
               className="icon-btn"
-              onClick={() => recarregar(pagina - 1)}
+              onClick={() => recarregar(pagina - 1, busca)}
               disabled={pagina === 0 || carregando}
             >
               <ChevronLeft size={16} />
             </button>
             <button
               className="icon-btn"
-              onClick={() => recarregar(pagina + 1)}
+              onClick={() => recarregar(pagina + 1, busca)}
               disabled={pagina >= totalPaginas - 1 || carregando}
             >
               <ChevronRight size={16} />

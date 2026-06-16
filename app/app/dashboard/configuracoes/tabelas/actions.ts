@@ -17,12 +17,12 @@ const REVALIDATE = '/dashboard/configuracoes/tabelas'
 export async function listarTabelas(
   pagina = 0,
   tamanhoPagina = 20,
+  filtroNome?: string,
 ): Promise<PagedResponse<TabelaRagDTO>> {
   const sub = await getSub()
-  const res = await api.get<PagedResponse<TabelaRagDTO>>(
-    `/rag/tabelas?pagina=${pagina}&tamanhoPagina=${tamanhoPagina}`,
-    { auth0Sub: sub },
-  )
+  let url = `/rag/tabelas?pagina=${pagina}&tamanhoPagina=${tamanhoPagina}`
+  if (filtroNome?.trim()) url += `&nome=${encodeURIComponent(filtroNome.trim())}`
+  const res = await api.get<PagedResponse<TabelaRagDTO>>(url, { auth0Sub: sub })
   return res.dados ?? { dados: [], pagina: 0, tamanhoPagina: 20, total: 0 }
 }
 
