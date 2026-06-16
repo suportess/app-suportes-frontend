@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
-import { Sparkles, Play, Copy, WrapText, X, Loader2, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react'
+import { useState, useRef } from 'react'
+import { Sparkles, Play, Copy, WrapText, X, Loader2, AlertCircle, ChevronDown, ChevronUp, Trash2 } from 'lucide-react'
 import type { EmpresaDTO } from '@/lib/types'
 import { gerarSqlComIA, executarConsulta } from '../actions'
 
@@ -91,13 +91,16 @@ function TabelaResultados({ dados }: { dados: Record<string, unknown>[] }) {
 // ─── AI Modal ─────────────────────────────────────────────────────────────────
 
 function ModalIA({
+  pergunta,
+  setPergunta,
   onFechar,
   onGerar,
 }: {
+  pergunta: string
+  setPergunta: (v: string) => void
   onFechar: () => void
   onGerar: (sql: string) => void
 }) {
-  const [pergunta, setPergunta] = useState('')
   const [carregando, setCarregando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
 
@@ -119,68 +122,132 @@ function ModalIA({
 
   return (
     <div
-      style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.55)' }}
+      style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.6)' }}
       onClick={(e) => { if (e.target === e.currentTarget) onFechar() }}
     >
-      <div className="card" style={{ width: '100%', maxWidth: 520, margin: '0 16px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Sparkles size={18} style={{ color: 'var(--brand)' }} />
-            <span style={{ fontWeight: 600, fontSize: 15 }}>Assistente SQL</span>
+      <div
+        className="card"
+        style={{ width: '100%', maxWidth: 700, margin: '0 20px', padding: 0, overflow: 'hidden' }}
+      >
+        {/* Header com gradiente */}
+        <div
+          style={{
+            padding: '20px 24px 18px',
+            background: 'linear-gradient(135deg, rgba(var(--brand-rgb, 99,102,241),0.12) 0%, transparent 60%)',
+            borderBottom: '1px solid var(--d2b-border)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 10,
+                background: 'linear-gradient(135deg, var(--brand) 0%, #818cf8 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
+            >
+              <Sparkles size={18} color="#fff" />
+            </div>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 15, lineHeight: 1.2 }}>Assistente SQL</div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                Descreva o que precisa — a IA gera o SQL Oracle
+              </div>
+            </div>
           </div>
           <button className="icon-btn" onClick={onFechar}>
             <X size={16} />
           </button>
         </div>
 
-        <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>
-          Descreva em português o que você precisa consultar. A IA vai gerar o SQL Oracle.
-        </p>
+        {/* Body */}
+        <div style={{ padding: '20px 24px 24px' }}>
+          <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>
+            Sua pergunta
+          </label>
 
-        <textarea
-          autoFocus
-          value={pergunta}
-          onChange={(e) => setPergunta(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) handleGerar() }}
-          placeholder="Ex: Liste os 10 últimos movimentos de estoque com o nome do produto e data"
-          style={{
-            width: '100%',
-            minHeight: 100,
-            resize: 'vertical',
-            padding: '10px 12px',
-            borderRadius: 8,
-            border: '1px solid var(--d2b-border)',
-            background: 'var(--bg-elevated)',
-            color: 'var(--text-primary)',
-            fontSize: 14,
-            fontFamily: 'inherit',
-            outline: 'none',
-            boxSizing: 'border-box',
-          }}
-        />
-
-        {erro && (
-          <div className="alert alert-danger" style={{ marginTop: 10, fontSize: 13 }}>
-            <AlertCircle size={14} style={{ flexShrink: 0 }} />
-            {erro}
-          </div>
-        )}
-
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 14 }}>
-          <button className="btn btn-ghost btn-sm" onClick={onFechar} disabled={carregando}>
-            Cancelar
-          </button>
-          <button
-            className="btn btn-gradient"
-            onClick={handleGerar}
-            disabled={carregando || !pergunta.trim()}
+          {/* Textarea com borda gradiente ao focar */}
+          <div
+            style={{
+              borderRadius: 10,
+              padding: 2,
+              background: pergunta.trim()
+                ? 'linear-gradient(135deg, var(--brand) 0%, #818cf8 100%)'
+                : 'var(--d2b-border)',
+              transition: 'background 0.2s',
+            }}
           >
-            {carregando ? (
-              <><Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> Gerando...</>
-            ) : (
-              <><Sparkles size={14} /> Gerar SQL</>
+            <textarea
+              autoFocus
+              value={pergunta}
+              onChange={(e) => setPergunta(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) handleGerar() }}
+              placeholder="Ex: Liste os 10 últimos movimentos de estoque com nome do produto, data e quantidade"
+              style={{
+                width: '100%',
+                minHeight: 140,
+                resize: 'vertical',
+                padding: '12px 14px',
+                borderRadius: 8,
+                border: 'none',
+                background: 'var(--bg-elevated)',
+                color: 'var(--text-primary)',
+                fontSize: 14,
+                fontFamily: 'inherit',
+                lineHeight: 1.6,
+                outline: 'none',
+                boxSizing: 'border-box',
+                display: 'block',
+              }}
+            />
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 }}>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+              {pergunta.length > 0 ? `${pergunta.length} caracteres` : 'Ctrl+Enter para gerar'}
+            </span>
+            {pergunta.trim() && (
+              <button
+                className="btn btn-ghost btn-sm"
+                onClick={() => { setPergunta(''); setErro(null) }}
+                style={{ fontSize: 11, gap: 4 }}
+                disabled={carregando}
+              >
+                <Trash2 size={11} /> Limpar
+              </button>
             )}
-          </button>
+          </div>
+
+          {erro && (
+            <div className="alert alert-danger" style={{ marginTop: 12, fontSize: 13 }}>
+              <AlertCircle size={14} style={{ flexShrink: 0 }} />
+              {erro}
+            </div>
+          )}
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 18 }}>
+            <button className="btn btn-ghost btn-sm" onClick={onFechar} disabled={carregando}>
+              Fechar
+            </button>
+            <button
+              className="btn btn-gradient"
+              onClick={handleGerar}
+              disabled={carregando || !pergunta.trim()}
+            >
+              {carregando ? (
+                <><Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> Gerando...</>
+              ) : (
+                <><Sparkles size={14} /> Gerar SQL</>
+              )}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -191,6 +258,7 @@ function ModalIA({
 
 export function SqlView({ empresa }: { empresa: EmpresaDTO | null }) {
   const [sql, setSql] = useState('')
+  const [pergunta, setPergunta] = useState('')
   const [modalIaAberto, setModalIaAberto] = useState(false)
   const [executando, setExecutando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
@@ -252,7 +320,12 @@ export function SqlView({ empresa }: { empresa: EmpresaDTO | null }) {
   return (
     <>
       {modalIaAberto && (
-        <ModalIA onFechar={() => setModalIaAberto(false)} onGerar={handleIaGerou} />
+        <ModalIA
+          pergunta={pergunta}
+          setPergunta={setPergunta}
+          onFechar={() => setModalIaAberto(false)}
+          onGerar={handleIaGerou}
+        />
       )}
 
       <div className="page">
@@ -325,7 +398,7 @@ export function SqlView({ empresa }: { empresa: EmpresaDTO | null }) {
             spellCheck={false}
             style={{
               width: '100%',
-              minHeight: 200,
+              minHeight: 340,
               resize: 'vertical',
               padding: '12px 14px',
               borderRadius: 8,
