@@ -397,6 +397,13 @@ export type ConsultaRagResponse = {
   sql: string
 }
 
+export type ConsultaSalvaDTO = {
+  id: number
+  nome: string
+  sqlTexto: string
+  dtCriacao: string
+}
+
 export type ExemploRagDTO = {
   id: string
   pergunta: string
