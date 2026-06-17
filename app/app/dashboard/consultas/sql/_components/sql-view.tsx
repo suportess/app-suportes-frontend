@@ -5,8 +5,9 @@ import {
   Sparkles, Play, Copy, WrapText, X, Loader2, AlertCircle,
   ChevronDown, ChevronUp, Trash2, FileCode2, Table2,
   GripVertical, Eye, EyeOff, Download, Save, BookOpen,
-  Check, Pencil,
+  Pencil,
 } from 'lucide-react'
+import * as XLSX from 'xlsx'
 import type { EmpresaDTO, ConsultaSalvaDTO } from '@/lib/types'
 import {
   gerarSqlComIA, executarConsulta,
@@ -33,31 +34,23 @@ function formatarSql(sql: string): string {
     .trim()
 }
 
-// ─── CSV export ───────────────────────────────────────────────────────────────
+// ─── Excel export ─────────────────────────────────────────────────────────────
 
-function exportarCsv(dados: Record<string, unknown>[], colunas: ColConfig[]) {
+function exportarExcel(dados: Record<string, unknown>[], colunas: ColConfig[]) {
   const visiveis = colunas.filter((c) => c.visible)
-  function esc(v: string) {
-    return v.includes(',') || v.includes('"') || v.includes('\n')
-      ? `"${v.replace(/"/g, '""')}"`
-      : v
-  }
-  const header = visiveis.map((c) => esc(c.label)).join(',')
-  const rows = dados.map((row) =>
-    visiveis
-      .map((c) => {
+  const wsData = [
+    visiveis.map((c) => c.label),
+    ...dados.map((row) =>
+      visiveis.map((c) => {
         const val = row[c.key]
-        return val === null || val === undefined ? '' : esc(String(val))
-      })
-      .join(','),
-  )
-  const csv = '﻿' + [header, ...rows].join('\r\n')
-  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }))
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `consulta_${new Date().toISOString().slice(0, 10)}.csv`
-  a.click()
-  URL.revokeObjectURL(url)
+        return val === null || val === undefined ? '' : val
+      }),
+    ),
+  ]
+  const ws = XLSX.utils.aoa_to_sheet(wsData)
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'Consulta')
+  XLSX.writeFile(wb, `consulta_${new Date().toISOString().slice(0, 10)}.xlsx`)
 }
 
 // ─── Modal IA ─────────────────────────────────────────────────────────────────
@@ -405,7 +398,7 @@ function PainelColunas({
 
 // ─── Tabela dinâmica ──────────────────────────────────────────────────────────
 
-function TabelaResultados({ dados, colunas }: { dados: Record<string, unknown>[]; colunas: ColConfig[] }) {
+function TabelaResultados({ dados, colunas, maxHeight }: { dados: Record<string, unknown>[]; colunas: ColConfig[]; maxHeight: number | string }) {
   const visiveis = colunas.filter((c) => c.visible)
 
   if (dados.length === 0) {
@@ -419,7 +412,7 @@ function TabelaResultados({ dados, colunas }: { dados: Record<string, unknown>[]
   }
 
   return (
-    <div className="overflow-auto" style={{ maxHeight: 420 }}>
+    <div className="overflow-auto" style={{ maxHeight }}>
       <table className="data-table" style={{ width: '100%' }}>
         <thead>
           <tr>
@@ -717,10 +710,10 @@ export function SqlView({ empresa }: { empresa: EmpresaDTO | null }) {
                     </button>
                     <button
                       className="btn btn-ghost btn-sm flex items-center gap-1"
-                      onClick={() => exportarCsv(resultados, colConfig)}
+                      onClick={() => exportarExcel(resultados, colConfig)}
                       style={{ fontSize: 11 }}
                     >
-                      <Download size={11} /> Exportar CSV
+                      <Download size={11} /> Exportar Excel
                     </button>
                   </>
                 )}
@@ -735,7 +728,11 @@ export function SqlView({ empresa }: { empresa: EmpresaDTO | null }) {
                 {colunasVisiveis && colConfig.length > 0 && (
                   <PainelColunas colunas={colConfig} onChange={setColConfig} />
                 )}
-                <TabelaResultados dados={resultados} colunas={colConfig} />
+                <TabelaResultados
+                  dados={resultados}
+                  colunas={colConfig}
+                  maxHeight={editorVisivel ? 420 : 'calc(100vh - 260px)'}
+                />
               </>
             )}
           </div>
