@@ -343,7 +343,6 @@
     cursor: pointer;
     white-space: nowrap;
     transition: background 0.15s, opacity 0.15s;
-    line-height: 1;
   }
   .btn:active { opacity: 0.85; }
 
